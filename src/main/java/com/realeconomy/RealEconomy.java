@@ -2,7 +2,10 @@ package com.realeconomy;
 
 import com.realeconomy.bank.BankActions;
 import com.realeconomy.bank.BankEntities;
+import com.realeconomy.buyer.BuyerActions;
+import com.realeconomy.buyer.BuyerEntities;
 import com.realeconomy.command.BankCommands;
+import com.realeconomy.command.BuyerCommands;
 import com.realeconomy.command.CurrencyCommands;
 import com.realeconomy.command.EcoAdminCommands;
 import com.realeconomy.command.GovernmentCommands;
@@ -71,6 +74,7 @@ public class RealEconomy implements ModInitializer {
             PartyCommands.register(dispatcher);
             GovernmentCommands.register(dispatcher);
             PublicWorksCommands.register(dispatcher);
+            BuyerCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
@@ -112,6 +116,10 @@ public class RealEconomy implements ModInitializer {
                     MarketActions.openForEntity(serverPlayer, villager);
                     return ActionResult.SUCCESS;
                 }
+                if (BuyerEntities.isBuyer(villager)) {
+                    BuyerActions.openForEntity(serverPlayer, villager);
+                    return ActionResult.SUCCESS;
+                }
             }
             return ActionResult.PASS;
         });
@@ -122,6 +130,6 @@ public class RealEconomy implements ModInitializer {
             ModNetworking.sendAllTo(server, handler.player);
         });
 
-        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas).");
+        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas, compradores).");
     }
 }

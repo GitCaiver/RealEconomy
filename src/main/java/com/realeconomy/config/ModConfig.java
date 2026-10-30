@@ -65,6 +65,40 @@ public class ModConfig {
     /** Máximo de entradas guardadas en el registro de emisiones (imprimir/quemar). */
     public int moneyLogMax = 50;
 
+    // ---- NPCs compradores por categoría (parte 4, 2ª tanda) ----
+    /** Si true, los precios de los compradores se mueven por oferta/demanda; si false, son fijos. */
+    public boolean buyersDynamicPricing = true;
+    /** Precio base (en esmeraldas) de cualquier item que no tenga precio propio. */
+    public double buyerBasePrice = 1.0;
+    /** Caída del multiplicador por unidad vendida (oferta/demanda). */
+    public double buyerDropPerUnit = 0.002;
+    /** Recuperación del multiplicador por segundo real (hacia la base). */
+    public double buyerRecoveryPerSecond = 0.001;
+    /** Suelo del multiplicador de precio (no baja de aquí). */
+    public double buyerMinMultiplier = 0.2;
+    /** Distancia máxima (bloques) a la que se puede usar un comprador. */
+    public double buyerRange = 6.0;
+    /** Textura de fondo de la GUI del comprador (sustituible por resource pack). */
+    public String buyerGuiTexture = "realeconomy:textures/gui/shop.png";
+    /** Categorías de compra: nombre -> tag de items (Minecraft/convencional). */
+    public java.util.Map<String, String> buyerCategories = defaultBuyerCategories();
+    /** Precio base (esmeraldas) por categoría; si falta, se usa buyerBasePrice. */
+    public java.util.Map<String, Double> buyerCategoryPrices = new java.util.LinkedHashMap<>();
+    /** Precio base (esmeraldas) por item concreto (id, p. ej. "minecraft:oak_log"); manda sobre la categoría. */
+    public java.util.Map<String, Double> buyerItemPrices = new java.util.LinkedHashMap<>();
+
+    private static java.util.Map<String, String> defaultBuyerCategories() {
+        java.util.LinkedHashMap<String, String> m = new java.util.LinkedHashMap<>();
+        m.put("madera", "minecraft:logs");
+        m.put("tablones", "minecraft:planks");
+        m.put("minerales", "c:ores");
+        m.put("carbon", "minecraft:coals");
+        m.put("lana", "minecraft:wool");
+        m.put("comida", "c:foods");
+        m.put("cultivos", "c:crops");
+        return m;
+    }
+
     // ---- Mercados de grupo (parte 7) ----
     /** Máximo de mercados que puede tener un grupo. */
     public int maxMarketsPerGroup = 2;

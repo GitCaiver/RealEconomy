@@ -1,6 +1,7 @@
 package com.realeconomy.network;
 
 import com.realeconomy.bank.BankActions;
+import com.realeconomy.buyer.BuyerActions;
 import com.realeconomy.market.MarketActions;
 import com.realeconomy.shop.ShopActions;
 import com.realeconomy.townhall.TownhallActions;
@@ -33,6 +34,8 @@ public final class ModNetworking {
         PayloadTypeRegistry.playC2S().register(ShopActionPayload.ID, ShopActionPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenMarketPayload.ID, OpenMarketPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MarketActionPayload.ID, MarketActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenBuyerPayload.ID, OpenBuyerPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(BuyerActionPayload.ID, BuyerActionPayload.CODEC);
     }
 
     /** Registra los receptores de paquetes del cliente (C2S). Llamar en la init común. */
@@ -45,6 +48,8 @@ public final class ModNetworking {
                 context.player().getServer().execute(() -> ShopActions.handle(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(MarketActionPayload.ID, (payload, context) ->
                 context.player().getServer().execute(() -> MarketActions.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(BuyerActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> BuyerActions.handle(context.player(), payload)));
     }
 
     /** Envía a un jugador toda la info de monedas (lista + iconos). */

@@ -46,7 +46,7 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 1. **Países y partidos** ✅ — "grupos" → países; partidos políticos dentro de cada país.
 2. **Moneda por defecto** ✅ — crear país crea su moneda automáticamente con item dorado propio.
 3. **Gobierno y política monetaria** ✅ — imprimir/quemar dinero, devaluación por circulación, estadísticas, obras públicas.
-4. **NPCs compradores por categoría** ⏳ — oferta y demanda por categorías (tags).
+4. **NPCs compradores por categoría** ✅ — oferta y demanda por categorías (tags); pagan desde la cuenta del país usando el valor de la moneda.
 5. **Subastas** ⏳ — licencia, sitio con pedestales, pujas en tiempo real.
    - (El "banquero y préstamos" original ya está hecho como parte 9.)
 
@@ -174,6 +174,42 @@ Config (parte 3): `devaluationEnabled` (true), `currencyBaseValue` (1.0), `curre
 5. **Obra pública:** con un item en la mano, `/obra crear 64 2` (pide 64 de ese item a 2/ud). Asegura saldo en la cuenta (imprime). Otro jugador con ese item: `/obra entregar <id> 10` → cobra 20 y la obra avanza. `/obra lista`, `/obra info <id>`.
 6. **Pausa por fondos:** vacía la cuenta (o pide más caro que el saldo) → `/obra entregar` avisa "sin fondos (pausada)" hasta que vuelva a haber saldo.
 7. Reinicia: circulación, historial y obras persisten. Disuelve el país: su política monetaria y obras se eliminan.
+
+## Parte 4 (2ª tanda) — NPCs compradores por categoría (implementada)
+
+El líder monta **NPC compradores** (aldeano "🛒 Comprador [SIGLAS]") que **compran items por categoría** (madera, minerales, comida, cultivos, piedra...). El pago sale de la **cuenta del país** y los precios se mueven por **oferta y demanda**.
+
+- **Categorías por tags (configurables):** cada categoría es un **tag de items** de Minecraft o convencional (`c:...`). Por defecto: `madera`→`minecraft:logs`, `tablones`→`minecraft:planks`, `minerales`→`c:ores`, `carbon`→`minecraft:coals`, `lana`→`minecraft:wool`, `comida`→`c:foods`, `cultivos`→`c:crops`. Se editan/añaden en `buyerCategories` de la config. (Si un tag no existe en tu instalación, esa categoría simplemente no casa con nada hasta que lo cambies.)
+- **Precio base igual para todo** (`buyerBasePrice`, en **esmeraldas**), con **override** por categoría (`buyerCategoryPrices`) o por item (`buyerItemPrices`).
+- **Oferta y demanda:** cada categoría tiene un multiplicador (0–1) que **baja al vender** (`buyerDropPerUnit` por unidad, suelo `buyerMinMultiplier`) y **se recupera** hacia la base con el tiempo real (`buyerRecoveryPerSecond`). El estado es **global** del servidor por categoría (todo el mundo mueve el mismo mercado) y sobrevive a reinicios (reloj real).
+- **Se puede desactivar** (`buyersDynamicPricing=false`) → precios fijos = base.
+- **Precio en esmeraldas → monedas del país:** el precio final por unidad se paga en la **moneda del país** del comprador usando el **valor actual** de la parte 3 (`coinsForEmeralds`). Una moneda devaluada paga más monedas por el mismo valor en esmeraldas.
+- **Pago desde la cuenta del país:** vender da saldo al jugador y descuenta de la cuenta del país. Si la cuenta se queda sin fondos, se vende solo lo que alcance. Los items vendidos se consumen (los absorbe el Estado).
+- **Panel/GUI:** clic derecho en el comprador abre una GUI con el **precio actual por categoría** (y su % respecto a la base) y un botón **Vender inventario** (vende de golpe todo lo comprable que lleves).
+
+Clases: `buyer.BuyerCategories` (resuelve categoría/precio por tags), `buyer.BuyerMarketManager` (`PersistentState` `realeconomy_buyers`: multiplicadores y recuperación), `buyer.BuyerEntities` (NPC), `buyer.BuyerActions` (venta + panel), `command.BuyerCommands`, `network.OpenBuyerPayload`/`BuyerActionPayload`/`BuyerCategoryView`, `client.BuyerScreen`.
+
+Comandos (`/comprador`, alias `/buyer`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/comprador crear` | líder | crea un NPC comprador de su país en su posición |
+| `/comprador borrar` | líder | elimina el comprador de su país más cercano |
+| `/comprador precios` | cualquiera | precio por categoría del comprador cercano (o de tu país) |
+| `/comprador vender [cantidad]` | cualquiera | vende el item de la mano al comprador cercano |
+
+Config (parte 4): `buyersDynamicPricing` (true), `buyerBasePrice` (1.0), `buyerDropPerUnit` (0.002), `buyerRecoveryPerSecond` (0.001), `buyerMinMultiplier` (0.2), `buyerRange` (6.0), `buyerGuiTexture`, `buyerCategories` (mapa), `buyerCategoryPrices`, `buyerItemPrices`.
+
+### Cómo probar la parte 4 (2ª tanda)
+
+1. País con moneda (partes 1-2) y **fondos en la cuenta** (parte 3: `/gobierno imprimir 5000`).
+2. Como líder: `/comprador crear` → aparece "🛒 Comprador [ESP]".
+3. `/comprador precios` → lista madera, minerales, etc. con su precio en tu moneda y el %.
+4. Con troncos en la mano (categoría `madera`): `/comprador vender` cerca del NPC → cobras y la cuenta baja. Repite y mira en `/comprador precios` cómo baja el % de `madera` (oferta/demanda). Espera un rato y se recupera.
+5. **GUI:** clic derecho en el comprador → ves el precio por categoría y el botón **Vender inventario** (vende todo lo comprable de golpe).
+6. **Devaluación (parte 3):** imprime mucho (`/gobierno imprimir 20000`) y verás que el mismo material paga **más monedas** (moneda devaluada).
+7. **Precios fijos:** pon `buyersDynamicPricing=false` + `/ecoadmin reload` → el % se queda al 100%.
+8. Reinicia: los multiplicadores y los NPC persisten.
 
 ## Parte 2 — Monedas y cuentas (implementada)
 

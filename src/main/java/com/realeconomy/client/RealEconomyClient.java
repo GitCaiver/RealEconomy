@@ -7,6 +7,7 @@ import com.realeconomy.network.CurrencyEntry;
 import com.realeconomy.network.CurrencyIconPayload;
 import com.realeconomy.network.CurrencyListPayload;
 import com.realeconomy.network.OpenBankPayload;
+import com.realeconomy.network.OpenBuyerPayload;
 import com.realeconomy.network.OpenMarketPayload;
 import com.realeconomy.network.OpenShopPayload;
 import com.realeconomy.network.OpenTownhallPayload;
@@ -61,6 +62,10 @@ public class RealEconomyClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(OpenMarketPayload.ID, (payload, context) ->
                 context.client().execute(() -> openOrUpdateMarket(context.client(), payload)));
 
+        // Abre o actualiza la interfaz de un comprador por categorías.
+        ClientPlayNetworking.registerGlobalReceiver(OpenBuyerPayload.ID, (payload, context) ->
+                context.client().execute(() -> openOrUpdateBuyer(context.client(), payload)));
+
         // El dato de tooltip de la moneda se convierte en el componente que pinta el icono.
         TooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof CoinTooltipData coin) {
@@ -111,6 +116,14 @@ public class RealEconomyClient implements ClientModInitializer {
             market.refresh(data);
         } else {
             client.setScreen(new MarketScreen(data));
+        }
+    }
+
+    private static void openOrUpdateBuyer(MinecraftClient client, OpenBuyerPayload data) {
+        if (client.currentScreen instanceof BuyerScreen buyer) {
+            buyer.refresh(data);
+        } else {
+            client.setScreen(new BuyerScreen(data));
         }
     }
 }
