@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "realeconomy",
+  "version": "${version}",
+  "name": "RealEconomy",
+  "description": "Una economía real para servidores de Minecraft basada en grupos: monedas, bancos, tiendas, impuestos y mucho más.",
+  "authors": [
+    "Caiver"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/realeconomy/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.realeconomy.RealEconomy"
+    ],
+    "client": [
+      "com.realeconomy.client.RealEconomyClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {}
+}

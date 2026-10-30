@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RealEconomy — Panel de progreso</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#191c23; --panel2:#20242d; --line:#2b3039;
+    --txt:#e6e8ec; --dim:#9aa3af; --accent:#4cc98f; --accent2:#f0b429;
+    --done:#2ecc71; --pend:#6b7280; --gold:#f0c040;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5}
+  header{padding:28px 24px;background:linear-gradient(135deg,#14331f,#0f1115);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:28px;letter-spacing:.5px}
+  header h1 .coin{color:var(--gold)}
+  header p{margin:6px 0 0;color:var(--dim)}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px}
+  .bar{height:14px;background:var(--panel2);border-radius:8px;overflow:hidden;margin:18px 0 4px;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;transition:width .6s}
+  .bar-label{color:var(--dim);font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative}
+  .card.done{border-color:#27543a}
+  .card .num{position:absolute;top:14px;right:16px;font-size:34px;font-weight:800;color:#262b33}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+  .badge.done{background:rgba(46,204,113,.15);color:var(--done);border:1px solid #27543a}
+  .badge.pend{background:rgba(107,114,128,.12);color:var(--pend);border:1px solid #333a45}
+  .card p{margin:10px 0 0;color:var(--dim);font-size:13.5px}
+  .card ul{margin:10px 0 0;padding-left:18px;color:var(--dim);font-size:13px}
+  .card code{background:#11141a;color:#9fe3c0;padding:1px 6px;border-radius:5px;font-size:12px}
+  h2.section{margin:34px 0 0;font-size:15px;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600}
+  td code{background:#11141a;color:#f0c88a;padding:1px 6px;border-radius:5px}
+  footer{color:#5b636f;font-size:12px;text-align:center;padding:30px}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;color:var(--dim);font-size:13px}
+  .meta b{color:var(--txt)}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="coin">●</span> RealEconomy <span style="color:var(--dim);font-size:16px">— panel de progreso</span></h1>
+  <p>Mod de economía para servidores de Minecraft · Fabric 1.21.1</p>
+  <div class="meta">
+    <span>Minecraft <b>1.21.1</b></span><span>Java <b>21</b></span>
+    <span>Loader <b>0.20.1</b></span><span>Fabric API <b>0.116.17</b></span><span>Loom <b>1.11.8</b></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="bar-label">Progreso: <b id="pct">0%</b> (<span id="donecount">0</span>/9 partes)</div>
+  <div class="bar"><i id="fill"></i></div>
+
+  <div class="grid" id="parts"></div>
+
+  <h2 class="section">Comandos disponibles</h2>
+  <table>
+    <thead><tr><th>Comando</th><th>Quién</th><th>Qué hace</th></tr></thead>
+    <tbody id="cmds"></tbody>
+  </table>
+
+  <h2 class="section">Cómo probar</h2>
+  <table>
+    <tbody>
+      <tr><td><code>./gradlew runClient</code></td><td>Cliente de pruebas con el mod cargado (necesario para ver las GUIs).</td></tr>
+      <tr><td><code>./gradlew runServer</code></td><td>Servidor de pruebas. Para ver iconos/GUIs conéctate con un cliente.</td></tr>
+      <tr><td><code>./gradlew build</code></td><td>Compila y genera <code>build/libs/realeconomy-*.jar</code>.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>Panel estático generado junto al mod · ábrelo en el navegador · se actualiza con cada parte</footer>
+
+<script>
+const parts = [
+  {n:1, t:"Grupos", done:true, d:"Grupos con siglas, color, líder y miembros. La lista de jugadores muestra el nombre con <code>[SIGLAS]</code> en el color del grupo (tab, placa y chat) vía scoreboard teams.",
+   f:["Siglas únicas 2-4 letras","Color configurable","Invitar / aceptar / expulsar / salir","Transferir liderazgo y disolver"]},
+  {n:2, t:"Monedas y cuentas", done:true, d:"Item físico de moneda por divisa (se apila por divisa). Icono por URL descargado, cacheado y enviado a los clientes; fallback por defecto. Libro de saldos digitales.",
+   f:["<code>/moneda crear &lt;nombre&gt; [url]</code>","Icono en el tooltip","Saldos por jugador/moneda","Admin: dar monedas y saldo"]},
+  {n:3, t:"Banco NPC", done:true, d:"NPC aldeano. GUI vanilla para ingresar (item→saldo), retirar (saldo→item) y transferir saldo entre jugadores. Fondo sustituible por resource pack/config.",
+   f:["<code>/bancocrear</code> / <code>/bancoborrar</code> (op)","Ingresar / Retirar / Transferir","Valida cercanía al banco"]},
+  {n:4, t:"Ayuntamiento y licencias", done:true, d:"NPC ayuntamiento. Compra de licencias de tienda (precio y moneda configurables). La licencia se consume al montar una tienda: una usada no se reutiliza.",
+   f:["<code>/ayuntamientocrear</code> (op)","Licencias consumibles","Precio/moneda por config","<code>/ecoadmin reload</code>"]},
+  {n:5, t:"Tiendas de jugadores", done:true, d:"Con licencia, el jugador monta una tienda (NPC). Ofertas de venta (stock→se retira a 0) y de compra (paga del saldo del dueño→se retira al agotar saldo o cantidad). Almacén = cofre vanilla.",
+   f:["<code>/tienda crear</code> (consume licencia)","<code>/tienda vender</code> / <code>/tienda comprar</code>","GUI de compra con iconos","Tope de tiendas configurable"]},
+  {n:6, t:"Impuestos y cuenta del grupo", done:true, d:"El líder crea impuestos (cantidad fija o %, periodicidad en tiempo real) que se cobran a todos los miembros (conectados o no) a la cuenta del grupo. Sueldos recurrentes y subvenciones se pagan desde esa cuenta.",
+   f:["Cuenta del grupo (<code>/tesoreria</code>)","Impuestos fijo / % (<code>/impuesto</code>)","Sueldos recurrentes y subvenciones","Periodicidad real (30s, 10m, 2h, 1d)"]},
+  {n:7, t:"Mercados de grupo (NPCs)", done:true, d:"El grupo monta un NPC de mercado que compra/vende items a cambio de monedas físicas desde su caja. Incluye el cambio esmeraldas↔monedas (una oferta con la esmeralda como item). La caja es finita: no imprime dinero.",
+   f:["<code>/mercado crear</code> (líder)","Ofertas vender/comprar por monedas físicas","Caja (cofre) con stock e items","Cambio esmeraldas↔monedas"]},
+  {n:8, t:"Trabajos y sueldos", done:true, d:"Los miembros cobran por trabajar: minería, tala, agricultura y banca. El líder fija el sueldo por acción y el pago sale de la cuenta del grupo (sin inflación). Las ganancias van al saldo.",
+   f:["<code>/trabajo sueldo &lt;trabajo&gt; &lt;cantidad&gt;</code> (líder)","Minería / tala / agricultura / banca","Pago desde la cuenta del grupo","Aviso en barra de acción"]},
+  {n:9, t:"Banquero y préstamos", done:false, d:"Un jugador banquero da préstamos (cantidad, moneda, interés, plazo real). Si no se paga a tiempo se cobra del saldo y, si no hay, queda deuda.",f:[]},
+];
+
+const cmds = [
+  ["/group create|invite|accept|kick|leave|...","jugadores","Gestión de grupos"],
+  ["/moneda crear|icono|nombre|info","líder","Moneda del grupo"],
+  ["/bancocrear · /bancoborrar","op","Crear/quitar banco"],
+  ["/ayuntamientocrear · /ayuntamientoborrar","op","Crear/quitar ayuntamiento"],
+  ["/tienda crear|vender|comprar|retirar|info|borrar","dueño","Gestión de tiendas"],
+  ["/impuesto crear|lista|borrar|cobrar","líder","Impuestos del grupo (tiempo real)"],
+  ["/tesoreria ver|pagar|sueldoset|sueldoquitar|sueldos","líder/miembro","Cuenta, sueldos y subvenciones"],
+  ["/mercado crear|vender|comprar|retirar|info|borrar","líder","Mercado del grupo (monedas físicas)"],
+  ["/trabajo sueldos|sueldo &lt;trabajo&gt; &lt;cantidad&gt;","líder/miembro","Sueldos por trabajo"],
+  ["/ecoadmin darmoneda|saldo|reload","op","Administración"],
+];
+
+const partsEl = document.getElementById('parts');
+parts.forEach(p=>{
+  const feats = p.f.length ? `<ul>${p.f.map(x=>`<li>${x}</li>`).join('')}</ul>` : '';
+  partsEl.insertAdjacentHTML('beforeend',
+   `<div class="card ${p.done?'done':''}">
+      <div class="num">${p.n}</div>
+      <span class="badge ${p.done?'done':'pend'}">${p.done?'Hecho':'Pendiente'}</span>
+      <h3>${p.t}</h3>
+      <p>${p.d}</p>${feats}
+    </div>`);
+});
+const done = parts.filter(p=>p.done).length;
+const pct = Math.round(done/parts.length*100);
+document.getElementById('donecount').textContent = done;
+document.getElementById('pct').textContent = pct+'%';
+setTimeout(()=>document.getElementById('fill').style.width = pct+'%', 100);
+
+const cmdsEl = document.getElementById('cmds');
+cmds.forEach(c=>cmdsEl.insertAdjacentHTML('beforeend',
+  `<tr><td><code>${c[0]}</code></td><td>${c[1]}</td><td>${c[2]}</td></tr>`));
+</script>
+</body>
+</html>
