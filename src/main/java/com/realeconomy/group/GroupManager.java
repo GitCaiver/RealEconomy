@@ -109,7 +109,24 @@ public class GroupManager extends PersistentState {
         syncTeam(g);
         addToTeam(g, leader.getNameForScoreboard());
         markDirty();
+        ensureCurrency(g);
         return g;
+    }
+
+    /**
+     * Garantiza que un país tenga su moneda. Al crear un país se crea su divisa
+     * automáticamente (icono dorado por defecto); el nombre por defecto es el del
+     * país y el líder puede cambiarlo con /moneda. También sirve para migrar
+     * países antiguos que se crearon sin moneda.
+     */
+    public void ensureCurrency(Group g) {
+        if (server == null) {
+            return;
+        }
+        com.realeconomy.economy.CurrencyManager cm = com.realeconomy.economy.CurrencyManager.get(server);
+        if (!cm.groupHasCurrency(g.getId())) {
+            cm.createForGroup(g, g.getName(), null);
+        }
     }
 
     public void disband(Group g) {

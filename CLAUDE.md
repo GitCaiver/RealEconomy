@@ -44,7 +44,7 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 ### Segunda tanda (cambios y añadidos en curso)
 
 1. **Países y partidos** ✅ — "grupos" → países; partidos políticos dentro de cada país.
-2. **Moneda por defecto** ⏳ — crear país crea su moneda automáticamente con item dorado propio.
+2. **Moneda por defecto** ✅ — crear país crea su moneda automáticamente con item dorado propio.
 3. **Gobierno y política monetaria** ⏳ — imprimir dinero, devaluación por circulación, estadísticas, obras públicas.
 4. **NPCs compradores por categoría** ⏳ — oferta y demanda por categorías (tags).
 5. **Subastas** ⏳ — licencia, sitio con pedestales, pujas en tiempo real.
@@ -99,6 +99,29 @@ Colores aceptados (español o inglés): rojo, verde, azul, amarillo, dorado/nara
 5. Con otro jugador del mismo país: `/partido unirse Progresistas`. Comprueba que **sigue viéndose `[ESP]`** sobre su cabeza (no el partido). `/partido lista`, `/partido info`.
 6. `/partido salir`, `/partido borrar` (fundador). Sal del país (`/pais leave`) y verás que también sales del partido.
 7. Reinicia el servidor: países y partidos persisten.
+
+## Parte 2 (2ª tanda) — Moneda por defecto (implementada)
+
+Al **crear un país se crea automáticamente su moneda**, sin tener que usar `/moneda crear`. Ya no hace falta ningún paso manual para tener divisa.
+
+- **Moneda dorada por defecto:** el item de moneda (`realeconomy:coin`) usa su **propia textura dorada** (`assets/realeconomy/textures/item/coin.png`) y el **icono por defecto** del tooltip/GUIs es ahora una **moneda dorada** (`realeconomy/default_icon.png`), no el círculo gris anterior. Ambos son sustituibles por resource pack.
+- **Nombre del item = nombre de la divisa + siglas del país,** con el color del país. Por defecto, al crear el país `España [ESP]`, la moneda se llama `España` y el item se titula **`España [ESP]`** en el color del país. El líder la renombra con `/moneda nombre <nombre>` (p. ej. a `Peseta`) y cambia el icono con `/moneda icono <url>`.
+- **En el menú creativo** aparece el item de moneda (pestaña "RealEconomy"). Para dar monedas de una divisa concreta se usa el comando de admin `/ecoadmin darmoneda <jugador> <siglas> <cantidad>` (entrega monedas físicas con su `currency_id`).
+- **Migración:** al arrancar el servidor, cualquier país antiguo que no tuviera moneda recibe la suya automáticamente (`SERVER_STARTED`), así que los mundos existentes quedan al día sin perder nada.
+
+Detalles técnicos:
+- `GroupManager.createGroup` llama a `ensureCurrency(g)` (crea la divisa con `CurrencyManager.createForGroup(g, g.getName(), null)` si no existe). `ensureCurrency` también se usa en la migración de arranque.
+- `CoinItem.getName(stack)` resuelve el título vía `CoinItem.NAME_RESOLVER` (instalado por el cliente con los metadatos de `ClientCurrencyStore`); en el servidor no se pinta nombre. El tooltip ya no repite el nombre (va en el título); solo avisa "Moneda desconocida" si el cliente aún no conoce la divisa.
+
+### Cómo probar la parte 2 (2ª tanda)
+
+Necesitas **cliente** (el nombre/icono se ven en el cliente): `./gradlew runClient` o conéctate a `./gradlew runServer`.
+
+1. `/pais create ESP rojo España` → además de crear el país, verás "Moneda creada automáticamente: España [ESP] (moneda dorada por defecto)".
+2. Date monedas (op): `/ecoadmin darmoneda TuNombre ESP 100`. En el inventario el item se titula **`España [ESP]`** en rojo y se ve dorado; el tooltip muestra el icono dorado por defecto.
+3. Renombra la divisa: `/moneda nombre Peseta` → el item pasa a titularse **`Peseta [ESP]`**. Cambia el icono: `/moneda icono <url>` (si falla la URL, se queda el dorado por defecto).
+4. Abre el menú creativo → pestaña **RealEconomy**: aparece el item de moneda.
+5. Reinicia: la moneda, su nombre e icono persisten. Un país creado antes de esta parte (sin moneda) recibe la suya al arrancar.
 
 ## Parte 2 — Monedas y cuentas (implementada)
 

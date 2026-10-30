@@ -1,5 +1,6 @@
 package com.realeconomy.client;
 
+import com.realeconomy.item.CoinItem;
 import com.realeconomy.item.CoinTooltipData;
 import com.realeconomy.item.ModItems;
 import com.realeconomy.network.CurrencyEntry;
@@ -23,6 +24,20 @@ public class RealEconomyClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // El nombre del item de moneda es el de la divisa + siglas del país, con su color.
+        CoinItem.NAME_RESOLVER = id -> {
+            CurrencyEntry e = ClientCurrencyStore.getEntry(id);
+            if (e == null) {
+                return null;
+            }
+            Formatting c = Formatting.byName(e.colorName());
+            if (c == null) {
+                c = Formatting.GOLD;
+            }
+            String suffix = e.tag().isEmpty() ? "" : " [" + e.tag() + "]";
+            return Text.literal(e.name() + suffix).formatted(c);
+        };
+
         // Recepción de metadatos e iconos de moneda.
         ClientPlayNetworking.registerGlobalReceiver(CurrencyListPayload.ID, (payload, context) ->
                 context.client().execute(() -> ClientCurrencyStore.updateList(payload.entries())));
@@ -54,23 +69,16 @@ public class RealEconomyClient implements ClientModInitializer {
             return null;
         });
 
-        // Línea de texto del tooltip: nombre de la moneda con las siglas y color del grupo.
+        // El nombre de la moneda ya va en el título del item (ver CoinItem). En el tooltip
+        // solo avisamos si el cliente aún no conoce esa divisa.
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             String currencyId = ModItems.currencyOf(stack);
             if (currencyId == null) {
                 return;
             }
-            CurrencyEntry entry = ClientCurrencyStore.getEntry(currencyId);
-            if (entry == null) {
+            if (ClientCurrencyStore.getEntry(currencyId) == null) {
                 lines.add(Text.literal("Moneda desconocida").formatted(Formatting.GRAY));
-                return;
             }
-            Formatting color = Formatting.byName(entry.colorName());
-            if (color == null) {
-                color = Formatting.GOLD;
-            }
-            String prefix = entry.tag().isEmpty() ? "" : "[" + entry.tag() + "] ";
-            lines.add(Text.literal(prefix + entry.name()).formatted(color));
         });
     }
 

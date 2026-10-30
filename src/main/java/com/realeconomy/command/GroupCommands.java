@@ -120,6 +120,9 @@ public final class GroupCommands {
 
         ctx.getSource().sendFeedback(() -> Text.literal("País creado: ")
                 .append(groupLabel(g)), true);
+        ctx.getSource().sendFeedback(() -> Text.literal("Moneda creada automáticamente: "
+                + g.getName() + " [" + g.getTag() + "] (moneda dorada por defecto). "
+                + "Cámbiale el nombre con /moneda nombre o el icono con /moneda icono <url>."), false);
         return 1;
     }
 

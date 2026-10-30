@@ -27,7 +27,10 @@ import com.realeconomy.item.ModItems;
 import com.realeconomy.jobs.JobEvents;
 import com.realeconomy.network.ModNetworking;
 import net.fabricmc.api.ModInitializer;
+import com.realeconomy.economy.CurrencyManager;
+import com.realeconomy.group.Group;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -64,6 +67,17 @@ public class RealEconomy implements ModInitializer {
             JobCommands.register(dispatcher);
             LoanCommands.register(dispatcher);
             PartyCommands.register(dispatcher);
+        });
+
+        // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            GroupManager gm = GroupManager.get(server);
+            CurrencyManager cm = CurrencyManager.get(server);
+            for (Group g : gm.getGroups()) {
+                if (!cm.groupHasCurrency(g.getId())) {
+                    cm.createForGroup(g, g.getName(), null);
+                }
+            }
         });
 
         // Procesa impuestos y sueldos en tiempo real (la propia clase se autolimita).
