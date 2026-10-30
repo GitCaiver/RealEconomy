@@ -45,7 +45,7 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 
 1. **Países y partidos** ✅ — "grupos" → países; partidos políticos dentro de cada país.
 2. **Moneda por defecto** ✅ — crear país crea su moneda automáticamente con item dorado propio.
-3. **Gobierno y política monetaria** ⏳ — imprimir dinero, devaluación por circulación, estadísticas, obras públicas.
+3. **Gobierno y política monetaria** ✅ — imprimir/quemar dinero, devaluación por circulación, estadísticas, obras públicas.
 4. **NPCs compradores por categoría** ⏳ — oferta y demanda por categorías (tags).
 5. **Subastas** ⏳ — licencia, sitio con pedestales, pujas en tiempo real.
    - (El "banquero y préstamos" original ya está hecho como parte 9.)
@@ -122,6 +122,58 @@ Necesitas **cliente** (el nombre/icono se ven en el cliente): `./gradlew runClie
 3. Renombra la divisa: `/moneda nombre Peseta` → el item pasa a titularse **`Peseta [ESP]`**. Cambia el icono: `/moneda icono <url>` (si falla la URL, se queda el dorado por defecto).
 4. Abre el menú creativo → pestaña **RealEconomy**: aparece el item de moneda.
 5. Reinicia: la moneda, su nombre e icono persisten. Un país creado antes de esta parte (sin moneda) recibe la suya al arrancar.
+
+## Parte 3 (2ª tanda) — Gobierno y política monetaria (implementada)
+
+El **líder gobierna la moneda** de su país: imprime o quema dinero, y el **valor de la moneda frente a la esmeralda** cambia según cuánto dinero haya en circulación. Además hay **obras públicas** (pedidos de materiales pagados desde la cuenta del país).
+
+### Política monetaria
+
+- **Imprimir dinero:** el líder crea dinero que entra en la **cuenta del país** (`/tesoreria`). Cada emisión se registra (cantidad, fecha, quién). Se hace con `/gobierno imprimir <cantidad>` **o** desde la GUI del ayuntamiento (botón *Imprimir*, solo el líder).
+- **Quemar/retirar dinero:** `/gobierno quemar <cantidad>` saca dinero de la cuenta del país y lo retira de la circulación (sube el valor).
+- **Devaluación (circulación → valor):** cada moneda tiene una **circulación** = dinero emitido por el país (impreso − quemado). El **valor** (esmeraldas por moneda) baja cuanto más dinero hay en circulación, con una **fórmula configurable**:
+  `valor = currencyBaseValue × currencyBaseCirculation / (currencyBaseCirculation + circulación)`, acotado entre `currencyMinValue` y `currencyMaxValue`. Se puede desactivar (`devaluationEnabled=false` → valor fijo = `currencyBaseValue`).
+- **Uso del valor:** las conversiones esmeralda↔moneda usan este valor actual (`MonetaryManager.coinsForEmeralds` / `emeraldsForCoins`). Lo consumirán los **NPCs compradores por categoría** de la parte 4.
+- **Estadísticas:** `/gobierno stats` (circulación, valor actual, equivalencia con esmeralda, saldo de la cuenta) y `/gobierno historial` (últimas emisiones con su circulación y valor resultantes). La GUI del ayuntamiento también muestra circulación y valor del país del jugador.
+
+### Obras públicas
+
+El líder crea un **pedido de materiales** (item, cantidad, precio por unidad, moneda) con `/obra crear`. **Cualquier jugador** entrega ese item con `/obra entregar <id>` y **cobra por unidad desde la cuenta del país** (va a su saldo). La obra **se cierra al completarse** y se **pausa si el país no tiene fondos** (no se puede entregar hasta que vuelva a haber saldo). Los ids de obra son **globales** (únicos en el servidor), así que se entrega por id sin importar el país.
+
+> Interpretación del punto "la cuenta del país puede comprar en tiendas/NPCs": se ha implementado la vía de **entrega por los jugadores** (los jugadores consiguen los materiales —incluso comprándolos en tiendas/mercados— y los entregan cobrando de la cuenta). No hay (todavía) un comprador automático que gaste la cuenta del país directamente en tiendas; se puede añadir si se quiere.
+
+Clases: `economy.MonetaryManager` (circulación, valor, registro de emisiones; `PersistentState` `realeconomy_monetary`), `gov.PublicWork` + `gov.PublicWorksManager` (`realeconomy_publicworks`), `command.GovernmentCommands`, `command.PublicWorksCommands`. GUI: `OpenTownhallPayload`/`TownhallActionPayload`/`TownhallScreen`/`TownhallActions` ampliados.
+
+Comandos de gobierno (`/gobierno`, alias `/gov`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/gobierno imprimir <cantidad>` | líder | crea dinero en la cuenta del país (sube circulación, baja valor) |
+| `/gobierno quemar <cantidad>` | líder | retira dinero de la cuenta y de la circulación (sube valor) |
+| `/gobierno stats` | miembro | circulación, valor actual, equivalencia y saldo de la cuenta |
+| `/gobierno historial` | miembro | últimas emisiones (imprimir/quemar) con circulación y valor |
+
+Comandos de obras públicas (`/obra`, alias `/obras`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/obra crear <cantidad> <precioUnidad> [siglasMoneda]` | líder | crea un pedido del item que lleva en la mano (moneda = la del país por defecto) |
+| `/obra lista` | cualquiera | lista las obras abiertas del servidor (con progreso y si están sin fondos) |
+| `/obra info <id>` | cualquiera | detalle de una obra |
+| `/obra entregar <id> [cantidad]` | cualquiera | entrega el item y cobra por unidad desde la cuenta del país |
+| `/obra cerrar <id>` | líder | cierra una obra de su país |
+
+Config (parte 3): `devaluationEnabled` (true), `currencyBaseValue` (1.0), `currencyBaseCirculation` (1000), `currencyMinValue` (0.01), `currencyMaxValue` (100.0), `moneyLogMax` (50).
+
+### Cómo probar la parte 3 (2ª tanda)
+
+1. País con moneda (partes 1-2): `/pais create ESP rojo España`.
+2. **Imprimir:** `/gobierno stats` (circulación 0, valor 1.000). `/gobierno imprimir 1000` → la cuenta sube (`/tesoreria`), circulación 1000 y valor baja a ~0.5. Imprime más y verás el valor caer. `/gobierno historial`.
+3. **Quemar:** `/gobierno quemar 500` → circulación baja a 500 y el valor sube. (Necesitas saldo en la cuenta; imprime antes.)
+4. **GUI:** como líder, clic derecho en un ayuntamiento (`/ayuntamientocrear`, op) → ves circulación/valor y el botón *Imprimir* con su casilla de cantidad.
+5. **Obra pública:** con un item en la mano, `/obra crear 64 2` (pide 64 de ese item a 2/ud). Asegura saldo en la cuenta (imprime). Otro jugador con ese item: `/obra entregar <id> 10` → cobra 20 y la obra avanza. `/obra lista`, `/obra info <id>`.
+6. **Pausa por fondos:** vacía la cuenta (o pide más caro que el saldo) → `/obra entregar` avisa "sin fondos (pausada)" hasta que vuelva a haber saldo.
+7. Reinicia: circulación, historial y obras persisten. Disuelve el país: su política monetaria y obras se eliminan.
 
 ## Parte 2 — Monedas y cuentas (implementada)
 

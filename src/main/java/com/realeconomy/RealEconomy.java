@@ -5,11 +5,13 @@ import com.realeconomy.bank.BankEntities;
 import com.realeconomy.command.BankCommands;
 import com.realeconomy.command.CurrencyCommands;
 import com.realeconomy.command.EcoAdminCommands;
+import com.realeconomy.command.GovernmentCommands;
 import com.realeconomy.command.GroupCommands;
 import com.realeconomy.command.JobCommands;
 import com.realeconomy.command.LoanCommands;
 import com.realeconomy.command.MarketCommands;
 import com.realeconomy.command.PartyCommands;
+import com.realeconomy.command.PublicWorksCommands;
 import com.realeconomy.command.ShopCommands;
 import com.realeconomy.command.TaxCommands;
 import com.realeconomy.command.TownhallCommands;
@@ -67,6 +69,8 @@ public class RealEconomy implements ModInitializer {
             JobCommands.register(dispatcher);
             LoanCommands.register(dispatcher);
             PartyCommands.register(dispatcher);
+            GovernmentCommands.register(dispatcher);
+            PublicWorksCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
@@ -118,6 +122,6 @@ public class RealEconomy implements ModInitializer {
             ModNetworking.sendAllTo(server, handler.player);
         });
 
-        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos).");
+        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas).");
     }
 }

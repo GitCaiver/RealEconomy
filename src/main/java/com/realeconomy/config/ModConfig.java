@@ -51,6 +51,20 @@ public class ModConfig {
      */
     public String partyCurrencyTag = "";
 
+    // ---- Gobierno / política monetaria (parte 3, 2ª tanda) ----
+    /** Si true, el valor de la moneda vs esmeralda depende del dinero en circulación. */
+    public boolean devaluationEnabled = true;
+    /** Valor base de una moneda (esmeraldas por moneda) con circulación cero. */
+    public double currencyBaseValue = 1.0;
+    /** Circulación de referencia para la devaluación: a mayor circulación, menor valor. */
+    public long currencyBaseCirculation = 1000;
+    /** Cota mínima del valor de una moneda (esmeraldas por moneda). */
+    public double currencyMinValue = 0.01;
+    /** Cota máxima del valor de una moneda (esmeraldas por moneda). */
+    public double currencyMaxValue = 100.0;
+    /** Máximo de entradas guardadas en el registro de emisiones (imprimir/quemar). */
+    public int moneyLogMax = 50;
+
     // ---- Mercados de grupo (parte 7) ----
     /** Máximo de mercados que puede tener un grupo. */
     public int maxMarketsPerGroup = 2;

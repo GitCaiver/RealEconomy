@@ -4,6 +4,8 @@ import com.realeconomy.config.ModConfig;
 import com.realeconomy.economy.BalanceManager;
 import com.realeconomy.economy.Currency;
 import com.realeconomy.economy.CurrencyManager;
+import com.realeconomy.economy.MonetaryManager;
+import com.realeconomy.finance.FinanceManager;
 import com.realeconomy.group.Group;
 import com.realeconomy.group.GroupManager;
 import com.realeconomy.network.OpenTownhallPayload;
@@ -37,12 +39,39 @@ public final class TownhallActions {
         MinecraftServer server = player.getServer();
         Currency c = licenseCurrency(server);
         int available = LicenseManager.get(server).get(player.getUuid());
+
+        // Política monetaria del país del jugador (parte 3).
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        boolean hasCountry = country != null;
+        String countryTag = "";
+        String countryColor = "white";
+        long circulation = 0L;
+        double value = 0.0;
+        boolean canPrint = false;
+        if (country != null) {
+            countryTag = country.getTag();
+            countryColor = (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName();
+            Currency cc = CurrencyManager.get(server).getByGroup(country.getId());
+            if (cc != null) {
+                MonetaryManager mm = MonetaryManager.get(server);
+                circulation = mm.circulation(cc.getId());
+                value = mm.value(cc.getId());
+                canPrint = country.isLeader(player.getUuid());
+            }
+        }
+
         OpenTownhallPayload payload = new OpenTownhallPayload(
                 ModConfig.get().licensePrice,
                 c == null ? "" : c.getId(),
                 c == null ? "" : c.getName(),
                 available,
-                c != null
+                c != null,
+                hasCountry,
+                countryTag,
+                countryColor,
+                circulation,
+                value,
+                canPrint
         );
         ServerPlayNetworking.send(player, payload);
     }
@@ -54,8 +83,35 @@ public final class TownhallActions {
         }
         if (action.action() == TownhallActionPayload.BUY_LICENSE) {
             buyLicense(player);
+        } else if (action.action() == TownhallActionPayload.PRINT) {
+            printMoney(player, action.amount());
         }
         openFor(player);
+    }
+
+    private static void printMoney(ServerPlayerEntity player, long amount) {
+        MinecraftServer server = player.getServer();
+        Group g = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            player.sendMessage(Text.literal("Solo el líder del país puede imprimir dinero.").formatted(Formatting.RED));
+            return;
+        }
+        Currency cc = CurrencyManager.get(server).getByGroup(g.getId());
+        if (cc == null) {
+            player.sendMessage(Text.literal("Tu país no tiene moneda.").formatted(Formatting.RED));
+            return;
+        }
+        if (amount <= 0) {
+            player.sendMessage(Text.literal("Indica una cantidad válida para imprimir.").formatted(Formatting.RED));
+            return;
+        }
+        BalanceManager.get(server).add(FinanceManager.accountUuid(g), cc.getId(), amount);
+        MonetaryManager mm = MonetaryManager.get(server);
+        mm.print(cc.getId(), amount, player.getNameForScoreboard());
+        player.sendMessage(Text.literal("Impresas " + amount + " " + cc.getName()
+                + " para la cuenta del país. Circulación: " + mm.circulation(cc.getId())
+                + " · valor: " + String.format(java.util.Locale.ROOT, "%.3f", mm.value(cc.getId()))
+                + " esmeraldas/moneda.").formatted(Formatting.GREEN), false);
     }
 
     private static void buyLicense(ServerPlayerEntity player) {

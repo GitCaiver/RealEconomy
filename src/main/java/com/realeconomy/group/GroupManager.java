@@ -135,10 +135,13 @@ public class GroupManager extends PersistentState {
             playerIndex.remove(uuid);
             invites.remove(uuid);
         }
-        // Limpia la cuenta del país, sus datos financieros (impuestos/sueldos) y sus partidos.
+        // Limpia la cuenta del país, sus datos financieros, su política monetaria,
+        // sus obras públicas y sus partidos.
         if (server != null) {
             com.realeconomy.economy.BalanceManager.get(server).clear(com.realeconomy.finance.FinanceManager.accountUuid(g));
             com.realeconomy.finance.FinanceManager.get(server).removeGroup(g.getId());
+            com.realeconomy.economy.MonetaryManager.get(server).remove(g.getId());
+            com.realeconomy.gov.PublicWorksManager.get(server).removeCountry(g.getId());
             com.realeconomy.party.PartyManager.get(server).removeByCountry(g.getId());
         }
         groups.remove(g.getId());
