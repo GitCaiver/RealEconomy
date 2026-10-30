@@ -7,6 +7,7 @@ import com.realeconomy.command.CurrencyCommands;
 import com.realeconomy.command.EcoAdminCommands;
 import com.realeconomy.command.GroupCommands;
 import com.realeconomy.command.JobCommands;
+import com.realeconomy.command.LoanCommands;
 import com.realeconomy.command.MarketCommands;
 import com.realeconomy.command.ShopCommands;
 import com.realeconomy.command.TaxCommands;
@@ -60,6 +61,7 @@ public class RealEconomy implements ModInitializer {
             TreasuryCommands.register(dispatcher);
             MarketCommands.register(dispatcher);
             JobCommands.register(dispatcher);
+            LoanCommands.register(dispatcher);
         });
 
         // Procesa impuestos y sueldos en tiempo real (la propia clase se autolimita).
@@ -100,6 +102,6 @@ public class RealEconomy implements ModInitializer {
             ModNetworking.sendAllTo(server, handler.player);
         });
 
-        LOGGER.info("RealEconomy inicializado (partes 1-8: grupos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos).");
+        LOGGER.info("RealEconomy inicializado (partes 1-9: grupos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos).");
     }
 }

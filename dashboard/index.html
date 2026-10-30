@@ -94,7 +94,8 @@ const parts = [
    f:["<code>/mercado crear</code> (líder)","Ofertas vender/comprar por monedas físicas","Caja (cofre) con stock e items","Cambio esmeraldas↔monedas"]},
   {n:8, t:"Trabajos y sueldos", done:true, d:"Los miembros cobran por trabajar: minería, tala, agricultura y banca. El líder fija el sueldo por acción y el pago sale de la cuenta del grupo (sin inflación). Las ganancias van al saldo.",
    f:["<code>/trabajo sueldo &lt;trabajo&gt; &lt;cantidad&gt;</code> (líder)","Minería / tala / agricultura / banca","Pago desde la cuenta del grupo","Aviso en barra de acción"]},
-  {n:9, t:"Banquero y préstamos", done:false, d:"Un jugador banquero da préstamos (cantidad, moneda, interés, plazo real). Si no se paga a tiempo se cobra del saldo y, si no hay, queda deuda.",f:[]},
+  {n:9, t:"Banquero y préstamos", done:true, d:"El líder presta desde la cuenta del grupo (capital, interés, plazo real). Al vencer, lo pendiente se cobra solo del saldo del deudor; si no llega, queda deuda y se sigue cobrando según recupere saldo. El dinero vuelve a la cuenta: no se imprime.",
+   f:["<code>/prestamo conceder &lt;jugador&gt; &lt;cantidad&gt; &lt;interes&gt; &lt;plazo&gt;</code> (líder)","Interés fijo y plazo en tiempo real","Cobro automático del saldo; deuda si no llega","<code>/prestamo pagar</code> / <code>perdonar</code>"]},
 ];
 
 const cmds = [
@@ -107,6 +108,7 @@ const cmds = [
   ["/tesoreria ver|pagar|sueldoset|sueldoquitar|sueldos","líder/miembro","Cuenta, sueldos y subvenciones"],
   ["/mercado crear|vender|comprar|retirar|info|borrar","líder","Mercado del grupo (monedas físicas)"],
   ["/trabajo sueldos|sueldo &lt;trabajo&gt; &lt;cantidad&gt;","líder/miembro","Sueldos por trabajo"],
+  ["/prestamo lista|mio|conceder|pagar|perdonar","líder/deudor","Préstamos del grupo (tiempo real)"],
   ["/ecoadmin darmoneda|saldo|reload","op","Administración"],
 ];
 

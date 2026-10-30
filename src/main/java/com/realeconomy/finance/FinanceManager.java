@@ -51,6 +51,8 @@ public class FinanceManager extends PersistentState {
         final Map<UUID, Salary> salaries = new LinkedHashMap<>();
         /** Sueldo por acción de cada trabajo (clave = Job.name()). Parte 8. */
         final Map<String, Long> wages = new LinkedHashMap<>();
+        /** Préstamos activos por deudor (uno por miembro). Parte 9. */
+        final Map<UUID, Loan> loans = new LinkedHashMap<>();
     }
 
     private final Map<String, GroupFinance> byGroup = new HashMap<>();
@@ -144,6 +146,32 @@ public class FinanceManager extends PersistentState {
         markDirty();
     }
 
+    // ---- Préstamos (parte 9) ----
+
+    public Map<UUID, Loan> loans(String groupId) {
+        GroupFinance gf = byGroup.get(groupId);
+        return gf == null ? Map.of() : gf.loans;
+    }
+
+    public Loan getLoan(String groupId, UUID borrower) {
+        GroupFinance gf = byGroup.get(groupId);
+        return gf == null ? null : gf.loans.get(borrower);
+    }
+
+    public void addLoan(String groupId, Loan loan) {
+        getOrCreate(groupId).loans.put(loan.getBorrower(), loan);
+        markDirty();
+    }
+
+    public boolean removeLoan(String groupId, UUID borrower) {
+        GroupFinance gf = byGroup.get(groupId);
+        if (gf == null || gf.loans.remove(borrower) == null) {
+            return false;
+        }
+        markDirty();
+        return true;
+    }
+
     // ---- Elimina todos los datos financieros de un grupo (al disolverlo) ----
 
     public void removeGroup(String groupId) {
@@ -196,10 +224,54 @@ public class FinanceManager extends PersistentState {
                     changed = true;
                 }
             }
+            if (!gf.loans.isEmpty() && collectLoans(server, g, gf, now, currencyId, account, balances)) {
+                changed = true;
+            }
         }
         if (changed) {
             markDirty();
         }
+    }
+
+    /**
+     * Cobra los préstamos vencidos: cuando llega el plazo se descuenta lo pendiente
+     * del saldo del deudor hacia la cuenta del grupo; si no hay saldo suficiente, el
+     * resto queda como deuda y se seguirá cobrando en siguientes ciclos. Devuelve
+     * true si hubo algún cambio.
+     */
+    private boolean collectLoans(MinecraftServer server, Group g, GroupFinance gf, long now,
+                                 String currencyId, UUID account, BalanceManager balances) {
+        boolean changed = false;
+        List<UUID> paidOff = new ArrayList<>();
+        for (Loan loan : gf.loans.values()) {
+            if (!loan.isDue(now) || loan.getOutstanding() <= 0) {
+                continue;
+            }
+            long bal = balances.get(loan.getBorrower(), currencyId);
+            long charge = Math.min(loan.getOutstanding(), bal);
+            if (charge > 0) {
+                balances.subtract(loan.getBorrower(), currencyId, charge);
+                balances.add(account, currencyId, charge);
+                loan.setOutstanding(loan.getOutstanding() - charge);
+                changed = true;
+            }
+            if (loan.getOutstanding() <= 0) {
+                paidOff.add(loan.getBorrower());
+                notify(server, loan.getBorrower(), Text.literal("Préstamo de ").append(tagText(g))
+                        .append(Text.literal(" saldado por completo.")).formatted(Formatting.GREEN));
+                changed = true;
+            } else if (!loan.isOverdue()) {
+                loan.setOverdue(true);
+                changed = true;
+                notify(server, loan.getBorrower(), Text.literal("Tu préstamo de ").append(tagText(g))
+                        .append(Text.literal(" ha vencido. Deuda pendiente: " + loan.getOutstanding()
+                                + ". Se cobrará automáticamente de tu saldo.")).formatted(Formatting.RED));
+            }
+        }
+        for (UUID borrower : paidOff) {
+            gf.loans.remove(borrower);
+        }
+        return changed;
     }
 
     private void collectTax(MinecraftServer server, Group g, Tax tax, String currencyId,
@@ -261,7 +333,7 @@ public class FinanceManager extends PersistentState {
         NbtList list = new NbtList();
         for (Map.Entry<String, GroupFinance> e : byGroup.entrySet()) {
             GroupFinance gf = e.getValue();
-            if (gf.taxes.isEmpty() && gf.salaries.isEmpty() && gf.wages.isEmpty()) {
+            if (gf.taxes.isEmpty() && gf.salaries.isEmpty() && gf.wages.isEmpty() && gf.loans.isEmpty()) {
                 continue;
             }
             NbtCompound gc = new NbtCompound();
@@ -281,6 +353,11 @@ public class FinanceManager extends PersistentState {
                 wagesNbt.putLong(w.getKey(), w.getValue());
             }
             gc.put("wages", wagesNbt);
+            NbtList loanList = new NbtList();
+            for (Loan l : gf.loans.values()) {
+                loanList.add(l.toNbt());
+            }
+            gc.put("loans", loanList);
             list.add(gc);
         }
         nbt.put("groups", list);
@@ -305,6 +382,11 @@ public class FinanceManager extends PersistentState {
             NbtCompound wagesNbt = gc.getCompound("wages");
             for (String key : wagesNbt.getKeys()) {
                 gf.wages.put(key, wagesNbt.getLong(key));
+            }
+            NbtList loanList = gc.getList("loans", NbtElement.COMPOUND_TYPE);
+            for (int j = 0; j < loanList.size(); j++) {
+                Loan l = Loan.fromNbt(loanList.getCompound(j));
+                gf.loans.put(l.getBorrower(), l);
             }
             mgr.byGroup.put(gc.getString("group"), gf);
         }

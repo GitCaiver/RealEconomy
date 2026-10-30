@@ -37,7 +37,7 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 6. **Impuestos y cuenta del grupo** ✅ — cuenta del grupo, impuestos (fijo/%) y sueldos recurrentes en tiempo real, subvenciones.
 7. **Mercados de grupo (NPCs)** ✅ — NPC de mercado del grupo que compra/vende items por monedas físicas desde su caja; incluye el cambio esmeraldas↔monedas.
 8. **Trabajos y sueldos** ✅ — minería/tala/agricultura/banca; el líder fija el sueldo por acción y se paga desde la cuenta del grupo.
-9. Banquero y préstamos — ⏳ pendiente.
+9. **Banquero y préstamos** ✅ — el líder presta desde la cuenta del grupo (capital, interés, plazo real); al vencer se cobra solo del saldo y, si no llega, queda deuda.
 
 ## Parte 1 — Grupos (implementada)
 
@@ -332,6 +332,38 @@ Comandos (`/trabajo`, alias `/jobs`):
 6. Vacía la cuenta del grupo → el trabajo deja de pagar (sin inflación). Reinicia: los sueldos por trabajo persisten.
 
 > Nota de diseño: pagar desde la cuenta del grupo cierra el bucle económico (impuestos → cuenta → sueldos/trabajos) y mantiene la economía autosostenible. Si prefieres que trabajar "cree" moneda nueva, se puede cambiar `jobs.Jobs.payWage` para abonar sin descontar de la cuenta.
+
+## Parte 9 — Banquero y préstamos (implementada)
+
+El **líder** actúa como banquero del grupo: concede **préstamos desde la cuenta del grupo** (la de la parte 6) a un miembro, con **capital, interés fijo y plazo en tiempo real**. El capital sale de la cuenta hacia el saldo del deudor; el total a devolver es `capital + capital*interés/100`.
+
+**Cobro automático y deuda:** cuando llega el plazo, `FinanceManager.tick` descuenta lo pendiente del **saldo** del deudor (connectado o no) y lo devuelve a la cuenta del grupo. Si el saldo no llega, se cobra lo que haya y el resto **queda como deuda**; se sigue cobrando solo en ciclos posteriores conforme el deudor recupere saldo, hasta saldarlo. Se avisa al deudor al vencer y al quedar saldado.
+
+**Autosostenible:** el dinero sale de la cuenta y vuelve a ella (más el interés, que también lo aportan los propios jugadores), así que no se imprime dinero. Un miembro solo puede tener **un préstamo activo** a la vez.
+
+Clases: `finance.Loan`, `finance.FinanceManager` (mapa `loans` por deudor + `collectLoans` en el `tick`), `command.LoanCommands`. Persisten en el mismo `PersistentState` que impuestos y sueldos.
+
+Comandos (`/prestamo`, alias `/loan`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/prestamo lista` | miembro | lista los préstamos activos del grupo y cuándo vencen |
+| `/prestamo mio` | miembro | muestra tu préstamo (pendiente, total, vencimiento) |
+| `/prestamo conceder <jugador> <cantidad> <interes> <plazo>` | líder | presta desde la cuenta del grupo (interés 0-1000 %) |
+| `/prestamo pagar [cantidad]` | deudor | devuelve anticipadamente (todo o una parte) desde tu saldo |
+| `/prestamo perdonar <jugador>` | líder | cancela la deuda de un miembro |
+
+> `<jugador>` se resuelve entre los miembros del grupo por nombre (funciona desconectado). `<plazo>`: `30s`, `10m`, `2h`, `1d` (mínimo 5s).
+
+### Cómo probar la parte 9
+
+1. Grupo con moneda (partes 1-2) y **saldo en la cuenta del grupo** (p. ej. con impuestos de la parte 6: `/impuesto crear iva fijo 100 5s` + `/impuesto cobrar iva`). Mira `/tesoreria`.
+2. Como líder: `/prestamo conceder Jugador2 100 10 20s` → Jugador2 recibe 100 en su saldo; debe devolver 110 en 20s. La cuenta del grupo baja 100.
+3. `/prestamo lista` (todos) y, como Jugador2, `/prestamo mio`.
+4. **Pago anticipado:** como Jugador2, `/prestamo pagar 40` (parcial) o `/prestamo pagar` (todo) → vuelve a la cuenta del grupo.
+5. **Vencimiento con saldo:** deja que pasen los 20s con saldo suficiente → se cobra solo y el préstamo se salda (aviso al deudor).
+6. **Vencimiento sin saldo (deuda):** da poco saldo al deudor antes de vencer → al vencer se cobra lo que haya y el resto queda como deuda; dale saldo después y verás que se cobra solo hasta saldarlo.
+7. `/prestamo perdonar Jugador2` cancela la deuda. Reinicia el servidor: préstamos y deudas persisten y los plazos siguen contando en tiempo real.
 
 ## Panel de progreso (local)
 
