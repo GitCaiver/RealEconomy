@@ -41,7 +41,12 @@ public final class GovernmentCommands {
                         .then(argument("cantidad", IntegerArgumentType.integer(1))
                                 .executes(GovernmentCommands::burn)))
                 .then(literal("stats").executes(GovernmentCommands::stats))
-                .then(literal("historial").executes(GovernmentCommands::history)));
+                .then(literal("historial").executes(GovernmentCommands::history))
+                .then(literal("impuestos")
+                        .executes(GovernmentCommands::taxRateShow)
+                        .then(literal("cobrar").executes(GovernmentCommands::taxRateCharge))
+                        .then(argument("porcentaje", IntegerArgumentType.integer(0, 100))
+                                .executes(GovernmentCommands::taxRateSet))));
         dispatcher.register(literal("gov").redirect(node));
     }
 
@@ -158,6 +163,40 @@ public final class GovernmentCommands {
             t.append(Text.literal("\n - En la cuenta del país: " + account));
             return t;
         }, false);
+        return 1;
+    }
+
+    private static int taxRateShow(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        Group g = memberCountry(ctx);
+        if (g == null) {
+            return 0;
+        }
+        int rate = FinanceManager.get(ctx.getSource().getServer()).getTaxRate(g.getId());
+        ctx.getSource().sendFeedback(() -> Text.literal("Impuesto general de ").append(tag(g))
+                .append(Text.literal(": " + rate + "% del saldo de cada miembro, cada "
+                        + com.realeconomy.config.ModConfig.get().countryTaxPeriod + ".")), false);
+        return 1;
+    }
+
+    private static int taxRateSet(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        Group g = leaderCountry(ctx);
+        if (g == null) {
+            return 0;
+        }
+        int rate = IntegerArgumentType.getInteger(ctx, "porcentaje");
+        FinanceManager.get(ctx.getSource().getServer()).setTaxRate(g.getId(), rate);
+        ctx.getSource().sendFeedback(() -> Text.literal("Impuesto general de ").append(tag(g))
+                .append(Text.literal(" ajustado al " + rate + "%.")).formatted(Formatting.GREEN), true);
+        return 1;
+    }
+
+    private static int taxRateCharge(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        Group g = leaderCountry(ctx);
+        if (g == null) {
+            return 0;
+        }
+        FinanceManager.get(ctx.getSource().getServer()).chargeTaxRateNow(ctx.getSource().getServer(), g);
+        ctx.getSource().sendFeedback(() -> Text.literal("Impuesto general cobrado ahora.").formatted(Formatting.GREEN), true);
         return 1;
     }
 

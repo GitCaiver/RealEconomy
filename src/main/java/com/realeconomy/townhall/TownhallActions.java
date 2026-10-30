@@ -48,9 +48,11 @@ public final class TownhallActions {
         long circulation = 0L;
         double value = 0.0;
         boolean canPrint = false;
+        int taxRate = 0;
         if (country != null) {
             countryTag = country.getTag();
             countryColor = (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName();
+            taxRate = FinanceManager.get(server).getTaxRate(country.getId());
             Currency cc = CurrencyManager.get(server).getByGroup(country.getId());
             if (cc != null) {
                 MonetaryManager mm = MonetaryManager.get(server);
@@ -71,7 +73,8 @@ public final class TownhallActions {
                 countryColor,
                 circulation,
                 value,
-                canPrint
+                canPrint,
+                taxRate
         );
         ServerPlayNetworking.send(player, payload);
     }
@@ -85,8 +88,22 @@ public final class TownhallActions {
             buyLicense(player);
         } else if (action.action() == TownhallActionPayload.PRINT) {
             printMoney(player, action.amount());
+        } else if (action.action() == TownhallActionPayload.SET_TAX) {
+            setTax(player, (int) action.amount());
         }
         openFor(player);
+    }
+
+    private static void setTax(ServerPlayerEntity player, int rate) {
+        MinecraftServer server = player.getServer();
+        Group g = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            player.sendMessage(Text.literal("Solo el líder del país puede ajustar los impuestos.").formatted(Formatting.RED));
+            return;
+        }
+        FinanceManager.get(server).setTaxRate(g.getId(), rate);
+        player.sendMessage(Text.literal("Impuesto general del país ajustado al " + Math.max(0, Math.min(100, rate)) + "%.")
+                .formatted(Formatting.GREEN), false);
     }
 
     private static void printMoney(ServerPlayerEntity player, long amount) {

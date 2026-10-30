@@ -7,16 +7,17 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
-/** Interfaz del ayuntamiento: compra de licencias y política monetaria del país. */
+/** Interfaz del ayuntamiento: licencias y política monetaria (imprimir + barra de impuestos). */
 public class TownhallScreen extends Screen {
 
-    private static final int BG_W = 190;
-    private static final int BG_H = 180;
+    private static final int BG_W = 200;
+    private static final int BG_H = 212;
 
     private OpenTownhallPayload data;
     private TextFieldWidget printField;
@@ -43,12 +44,12 @@ public class TownhallScreen extends Screen {
 
         ButtonWidget buy = ButtonWidget.builder(Text.literal("Comprar licencia"),
                         b -> ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.BUY_LICENSE, 0)))
-                .dimensions(x + 20, y + 70, BG_W - 40, 20).build();
+                .dimensions(x + 20, y + 58, BG_W - 40, 18).build();
         buy.active = data.configured();
         this.addDrawableChild(buy);
 
         if (data.canPrint()) {
-            this.printField = new TextFieldWidget(this.textRenderer, x + 20, y + 140, 70, 18, Text.literal("cantidad"));
+            this.printField = new TextFieldWidget(this.textRenderer, x + 20, y + 150, 70, 18, Text.literal("cantidad"));
             this.printField.setPlaceholder(Text.literal("cantidad"));
             this.addDrawableChild(this.printField);
 
@@ -57,8 +58,10 @@ public class TownhallScreen extends Screen {
                 if (amount > 0) {
                     ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.PRINT, amount));
                 }
-            }).dimensions(x + 98, y + 140, BG_W - 98 - 20, 18).build();
+            }).dimensions(x + 98, y + 150, BG_W - 98 - 20, 18).build();
             this.addDrawableChild(print);
+
+            this.addDrawableChild(new TaxSlider(x + 20, y + 174, BG_W - 40, 18, data.taxRate()));
         }
     }
 
@@ -78,28 +81,28 @@ public class TownhallScreen extends Screen {
 
         if (data.configured()) {
             ctx.drawText(this.textRenderer, Text.literal("Licencia: " + data.price() + " " + data.currencyName()),
-                    x + 12, y + 30, 0x303030, false);
+                    x + 12, y + 28, 0x303030, false);
             ctx.drawText(this.textRenderer, Text.literal("Disponibles: " + data.available()),
-                    x + 12, y + 44, 0x303030, false);
+                    x + 12, y + 42, 0x303030, false);
         } else {
-            ctx.drawText(this.textRenderer, Text.literal("Licencias no configuradas."), x + 12, y + 30, 0xA00000, false);
-            ctx.drawText(this.textRenderer, Text.literal("Avisa a un administrador."), x + 12, y + 44, 0x707070, false);
+            ctx.drawText(this.textRenderer, Text.literal("Licencias no configuradas."), x + 12, y + 28, 0xA00000, false);
+            ctx.drawText(this.textRenderer, Text.literal("Avisa a un administrador."), x + 12, y + 42, 0x707070, false);
         }
 
-        // Panel de política monetaria del país del jugador.
-        int my = y + 98;
+        int my = y + 84;
         ctx.drawText(this.textRenderer, Text.literal("Política monetaria").formatted(Formatting.DARK_GRAY),
                 x + 12, my, 0x303030, false);
         if (!data.hasCountry()) {
-            ctx.drawText(this.textRenderer, Text.literal("No perteneces a ningún país."), x + 12, my + 14, 0x707070, false);
+            ctx.drawText(this.textRenderer, Text.literal("No perteneces a ningún país."), x + 12, my + 13, 0x707070, false);
         } else {
-            ctx.drawText(this.textRenderer, Text.literal("País [" + data.countryTag() + "]"), x + 12, my + 14, 0x303030, false);
-            ctx.drawText(this.textRenderer, Text.literal("Circulación: " + data.circulation()), x + 12, my + 26, 0x303030, false);
+            ctx.drawText(this.textRenderer, Text.literal("País [" + data.countryTag() + "]  ·  impuesto " + data.taxRate() + "%"),
+                    x + 12, my + 13, 0x303030, false);
+            ctx.drawText(this.textRenderer, Text.literal("Circulación: " + data.circulation()), x + 12, my + 25, 0x303030, false);
             ctx.drawText(this.textRenderer,
                     Text.literal("Valor: " + String.format(java.util.Locale.ROOT, "%.3f", data.value()) + " esm/moneda"),
-                    x + 12, my + 38, 0x303030, false);
+                    x + 12, my + 37, 0x303030, false);
             if (!data.canPrint()) {
-                ctx.drawText(this.textRenderer, Text.literal("(solo el líder imprime)"), x + 12, my + 50, 0x909090, false);
+                ctx.drawText(this.textRenderer, Text.literal("(solo el líder gobierna)"), x + 12, my + 49, 0x909090, false);
             }
         }
 
@@ -114,5 +117,29 @@ public class TownhallScreen extends Screen {
     public void refresh(OpenTownhallPayload data) {
         this.data = data;
         this.clearAndInit();
+    }
+
+    /** Barra 0-100 para ajustar el impuesto general del país; envía al soltar. */
+    private static class TaxSlider extends SliderWidget {
+        TaxSlider(int x, int y, int w, int h, int rate) {
+            super(x, y, w, h, Text.empty(), Math.max(0, Math.min(100, rate)) / 100.0);
+            updateMessage();
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(Text.literal("Impuestos: " + (int) Math.round(this.value * 100) + "%"));
+        }
+
+        @Override
+        protected void applyValue() {
+            // Se envía al soltar (onRelease) para no spamear la red durante el arrastre.
+        }
+
+        @Override
+        public void onRelease(double mouseX, double mouseY) {
+            ClientPlayNetworking.send(new TownhallActionPayload(
+                    TownhallActionPayload.SET_TAX, Math.round(this.value * 100)));
+        }
     }
 }

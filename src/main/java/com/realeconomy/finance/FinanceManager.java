@@ -53,6 +53,10 @@ public class FinanceManager extends PersistentState {
         final Map<String, Long> wages = new LinkedHashMap<>();
         /** Préstamos activos por deudor (uno por miembro). Parte 9. */
         final Map<UUID, Loan> loans = new LinkedHashMap<>();
+        /** Tasa de impuestos general del país (0-100 %), ajustable con la barra. 2ª tanda. */
+        int taxRate = 0;
+        /** Último cobro de la tasa general (ms, reloj real). */
+        long taxRateLast = 0L;
     }
 
     private final Map<String, GroupFinance> byGroup = new HashMap<>();
@@ -146,6 +150,60 @@ public class FinanceManager extends PersistentState {
         markDirty();
     }
 
+    // ---- Tasa de impuestos general (barra 0-100, 2ª tanda) ----
+
+    public int getTaxRate(String groupId) {
+        GroupFinance gf = byGroup.get(groupId);
+        return gf == null ? 0 : gf.taxRate;
+    }
+
+    public void setTaxRate(String groupId, int rate) {
+        GroupFinance gf = getOrCreate(groupId);
+        gf.taxRate = Math.max(0, Math.min(100, rate));
+        gf.taxRateLast = System.currentTimeMillis();
+        markDirty();
+    }
+
+    /** Fuerza el cobro inmediato de la tasa general (para pruebas). */
+    public void chargeTaxRateNow(MinecraftServer server, Group g) {
+        GroupFinance gf = byGroup.get(g.getId());
+        if (gf == null || gf.taxRate <= 0) {
+            return;
+        }
+        Currency c = CurrencyManager.get(server).getByGroup(g.getId());
+        if (c == null) {
+            return;
+        }
+        collectTaxRate(server, g, gf, c.getId(), accountUuid(g), BalanceManager.get(server));
+        gf.taxRateLast = System.currentTimeMillis();
+        markDirty();
+    }
+
+    /** Periodo (ms) de cobro de la tasa general, según la config. */
+    private static long taxRatePeriod() {
+        long p = com.realeconomy.util.TimeUtil.parsePeriod(com.realeconomy.config.ModConfig.get().countryTaxPeriod);
+        return p > 0 ? p : 3_600_000L;
+    }
+
+    private void collectTaxRate(MinecraftServer server, Group g, GroupFinance gf, String currencyId,
+                                UUID account, BalanceManager balances) {
+        long collected = 0L;
+        for (UUID member : g.getMembers()) {
+            long bal = balances.get(member, currencyId);
+            long amount = bal * gf.taxRate / 100L;
+            if (amount <= 0) {
+                continue;
+            }
+            balances.subtract(member, currencyId, amount);
+            collected += amount;
+            notify(server, member, Text.literal("Impuesto general (" + gf.taxRate + "%): -" + amount
+                    + " a la cuenta de ").append(tagText(g)).formatted(Formatting.YELLOW));
+        }
+        if (collected > 0) {
+            balances.add(account, currencyId, collected);
+        }
+    }
+
     // ---- Préstamos (parte 9) ----
 
     public Map<UUID, Loan> loans(String groupId) {
@@ -216,6 +274,11 @@ public class FinanceManager extends PersistentState {
                     tax.setLastRun(now);
                     changed = true;
                 }
+            }
+            if (gf.taxRate > 0 && now - gf.taxRateLast >= taxRatePeriod()) {
+                collectTaxRate(server, g, gf, currencyId, account, balances);
+                gf.taxRateLast = now;
+                changed = true;
             }
             for (Salary salary : gf.salaries.values()) {
                 if (salary.isDue(now)) {
@@ -333,11 +396,14 @@ public class FinanceManager extends PersistentState {
         NbtList list = new NbtList();
         for (Map.Entry<String, GroupFinance> e : byGroup.entrySet()) {
             GroupFinance gf = e.getValue();
-            if (gf.taxes.isEmpty() && gf.salaries.isEmpty() && gf.wages.isEmpty() && gf.loans.isEmpty()) {
+            if (gf.taxes.isEmpty() && gf.salaries.isEmpty() && gf.wages.isEmpty() && gf.loans.isEmpty()
+                    && gf.taxRate == 0) {
                 continue;
             }
             NbtCompound gc = new NbtCompound();
             gc.putString("group", e.getKey());
+            gc.putInt("taxRate", gf.taxRate);
+            gc.putLong("taxRateLast", gf.taxRateLast);
             NbtList taxList = new NbtList();
             for (Tax t : gf.taxes) {
                 taxList.add(t.toNbt());
@@ -370,6 +436,8 @@ public class FinanceManager extends PersistentState {
         for (int i = 0; i < list.size(); i++) {
             NbtCompound gc = list.getCompound(i);
             GroupFinance gf = new GroupFinance();
+            gf.taxRate = gc.getInt("taxRate");
+            gf.taxRateLast = gc.getLong("taxRateLast");
             NbtList taxList = gc.getList("taxes", NbtElement.COMPOUND_TYPE);
             for (int j = 0; j < taxList.size(); j++) {
                 gf.taxes.add(Tax.fromNbt(taxList.getCompound(j)));

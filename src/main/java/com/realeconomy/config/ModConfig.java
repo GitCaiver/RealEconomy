@@ -64,6 +64,8 @@ public class ModConfig {
     public double currencyMaxValue = 100.0;
     /** Máximo de entradas guardadas en el registro de emisiones (imprimir/quemar). */
     public int moneyLogMax = 50;
+    /** Periodo de cobro de la tasa de impuestos general (barra 0-100): 30s/10m/1h/1d. */
+    public String countryTaxPeriod = "1h";
 
     // ---- NPCs compradores por categoría (parte 4, 2ª tanda) ----
     /** Si true, los precios de los compradores se mueven por oferta/demanda; si false, son fijos. */
@@ -98,6 +100,22 @@ public class ModConfig {
         m.put("cultivos", "c:crops");
         return m;
     }
+
+    // ---- Subastas (parte 5, 2ª tanda) ----
+    /** Precio de una licencia de subasta (se compra en el ayuntamiento). */
+    public int auctionLicensePrice = 100;
+    /** Siglas del país cuya moneda se usa para pagar la licencia de subasta (vacío = sin configurar). */
+    public String auctionLicenseCurrencyTag = "";
+    /** Comisión (%) que se lleva la cuenta del país del vendedor al cerrarse una subasta con puja. */
+    public int auctionCommissionPercent = 5;
+    /** Duración mínima de una subasta (p. ej. 30s, 5m, 1h). */
+    public String auctionMinDuration = "30s";
+    /** Distancia máxima (bloques) para interactuar con un pedestal de subasta. */
+    public double auctionRange = 4.0;
+    /** Bloque que se coloca como pedestal de subasta. */
+    public String auctionPedestalBlock = "minecraft:oak_fence";
+    /** Textura de fondo de la GUI de subastas (sustituible por resource pack). */
+    public String auctionGuiTexture = "realeconomy:textures/gui/shop.png";
 
     // ---- Mercados de grupo (parte 7) ----
     /** Máximo de mercados que puede tener un grupo. */

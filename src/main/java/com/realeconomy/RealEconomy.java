@@ -1,9 +1,11 @@
 package com.realeconomy;
 
+import com.realeconomy.auction.AuctionService;
 import com.realeconomy.bank.BankActions;
 import com.realeconomy.bank.BankEntities;
 import com.realeconomy.buyer.BuyerActions;
 import com.realeconomy.buyer.BuyerEntities;
+import com.realeconomy.command.AuctionCommands;
 import com.realeconomy.command.BankCommands;
 import com.realeconomy.command.BuyerCommands;
 import com.realeconomy.command.CurrencyCommands;
@@ -37,6 +39,7 @@ import com.realeconomy.group.Group;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.passive.VillagerEntity;
@@ -75,6 +78,7 @@ public class RealEconomy implements ModInitializer {
             GovernmentCommands.register(dispatcher);
             PublicWorksCommands.register(dispatcher);
             BuyerCommands.register(dispatcher);
+            AuctionCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
@@ -90,6 +94,9 @@ public class RealEconomy implements ModInitializer {
 
         // Procesa impuestos y sueldos en tiempo real (la propia clase se autolimita).
         ServerTickEvents.END_SERVER_TICK.register(server -> FinanceManager.get(server).tick(server));
+
+        // Cierra subastas vencidas y refresca sus displays (autolimitado a 1/seg).
+        ServerTickEvents.END_SERVER_TICK.register(AuctionService::tick);
 
         // Trabajos: minería/tala/agricultura al romper bloques (la banca se cobra en BankActions).
         JobEvents.register();
@@ -124,12 +131,31 @@ public class RealEconomy implements ModInitializer {
             return ActionResult.PASS;
         });
 
+        // Clic derecho en un pedestal de subasta: muestra la info (o la pista para colocar).
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (world.isClient || hand != Hand.MAIN_HAND) {
+                return ActionResult.PASS;
+            }
+            if (player instanceof ServerPlayerEntity serverPlayer
+                    && com.realeconomy.auction.AuctionManager.get(serverPlayer.getServer()).isPedestal(hitResult.getBlockPos())) {
+                AuctionService.rightClick(serverPlayer.getServer(), serverPlayer, hitResult.getBlockPos());
+                return ActionResult.SUCCESS;
+            }
+            return ActionResult.PASS;
+        });
+
         // Al conectarse un jugador: sincroniza su equipo de grupo y recibe las monedas.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             GroupManager.get(server).onPlayerJoin(handler.player);
             ModNetworking.sendAllTo(server, handler.player);
+            // Entrega lo pendiente de subastas (ganado o devuelto estando desconectado).
+            int collected = AuctionService.collect(server, handler.player);
+            if (collected > 0) {
+                handler.player.sendMessage(net.minecraft.text.Text.literal(
+                        "Recogiste " + collected + " objeto(s) de subastas."), false);
+            }
         });
 
-        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas, compradores).");
+        LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas, compradores, subastas).");
     }
 }

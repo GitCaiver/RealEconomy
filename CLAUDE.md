@@ -47,8 +47,10 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 2. **Moneda por defecto** ✅ — crear país crea su moneda automáticamente con item dorado propio.
 3. **Gobierno y política monetaria** ✅ — imprimir/quemar dinero, devaluación por circulación, estadísticas, obras públicas.
 4. **NPCs compradores por categoría** ✅ — oferta y demanda por categorías (tags); pagan desde la cuenta del país usando el valor de la moneda.
-5. **Subastas** ⏳ — licencia, sitio con pedestales, pujas en tiempo real.
+5. **Subastas** ✅ — licencia, pedestales, pujas en tiempo real, comisión al país, cobro offline.
    - (El "banquero y préstamos" original ya está hecho como parte 9.)
+
+**Extra (2ª tanda):** barra de impuestos general del país **0–100 %** (slider en el ayuntamiento + `/gobierno impuestos`), que cobra ese % del saldo de cada miembro a la cuenta del país de forma periódica.
 
 ## Parte 1 (2ª tanda) — Países y partidos (implementada)
 
@@ -210,6 +212,58 @@ Config (parte 4): `buyersDynamicPricing` (true), `buyerBasePrice` (1.0), `buyerD
 6. **Devaluación (parte 3):** imprime mucho (`/gobierno imprimir 20000`) y verás que el mismo material paga **más monedas** (moneda devaluada).
 7. **Precios fijos:** pon `buyersDynamicPricing=false` + `/ecoadmin reload` → el % se queda al 100%.
 8. Reinicia: los multiplicadores y los NPC persisten.
+
+## Parte 5 (2ª tanda) — Subastas (implementada)
+
+Sistema de subastas sobre **pedestales** con **puja en tiempo real**, comisión para el país y **cobro offline**.
+
+- **Licencia de subasta:** se compra en el ayuntamiento con `/subasta licencia` (requiere estar cerca de uno). Precio y moneda en config (`auctionLicensePrice`, `auctionLicenseCurrencyTag`). Colocar una subasta **consume 1 licencia** (como las tiendas).
+- **Pedestales (op):** `/subastacrear` coloca un pedestal (bloque de madera configurable) en el bloque al que miras; `/subastaborrar` elimina el pedestal más cercano (y devuelve la subasta si la había). El sitio se construye poniendo varios pedestales.
+- **Colocar subasta:** con el item en la mano y junto a un pedestal **libre**, `/subasta crear <precio> <moneda> <duracion>` (duración en tiempo real: `30s`/`10m`/`2h`/`1d`, mínimo `auctionMinDuration`). El item sale de tu mano y queda en la subasta.
+- **Display:** sobre el pedestal **flota y rota** el item subastado (entidad item sin gravedad ni recogida), con el **nombre vivo** encima (puja/estado y tiempo restante). El brillo de encantamientos se ve en el propio item; detalles completos (vendedor, puja, durabilidad, encantamientos, tiempo) con `/subasta info` o **clic derecho** en el pedestal.
+- **Pujar:** `/subasta pujar <cantidad>` junto al pedestal (o clic derecho para ver la info y pujar por comando). La puja debe superar la actual (o el precio inicial). El dinero se **retiene** (se descuenta del saldo al pujar) y se **devuelve** al pujador anterior cuando alguien le supera.
+- **Cierre (en tiempo real):** al vencer, el **mejor postor** recibe el item y el **vendedor** cobra la puja menos una **comisión** (`auctionCommissionPercent`) que va a la **cuenta del país del vendedor**. Si no hubo pujas, el item vuelve al vendedor. El vendedor puede **cancelar** (`/subasta cancelar`) solo si no hay pujas.
+- **Cobro offline:** si ganas o te devuelven un item estando desconectado, queda **pendiente** y se te entrega al conectarte (o con `/subasta recoger`). Los reembolsos de puja son saldo digital (funcionan desconectado).
+- **Persistencia:** pedestales, subastas (con su item), pujas retenidas y entregas pendientes sobreviven a reinicios; los plazos van por reloj real.
+
+Clases: `auction.Auction`, `auction.AuctionManager` (`PersistentState` `realeconomy_auctions`), `auction.AuctionDisplay` (item flotante), `auction.AuctionService` (colocar/pujar/cancelar/cerrar/cobrar), `command.AuctionCommands`. Licencia en `townhall.LicenseManager` (contador aparte).
+
+Comandos de subasta (`/subasta`, alias `/auction`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/subasta licencia` | cualquiera (junto a ayuntamiento) | compra una licencia de subasta |
+| `/subasta crear <precio> <moneda> <duracion>` | con licencia, junto a pedestal libre | subasta el item de la mano |
+| `/subasta pujar <cantidad>` | cualquiera, junto al pedestal | puja (retiene el dinero; devuelve al anterior) |
+| `/subasta cancelar` | vendedor, sin pujas | cancela y recupera el item |
+| `/subasta info` | cualquiera | detalle de la subasta cercana |
+| `/subasta lista` | cualquiera | todas las subastas activas |
+| `/subasta recoger` | cualquiera | recoge items pendientes (offline) |
+| `/subastacrear` / `/subastaborrar` | op | crea/elimina un pedestal |
+
+Config (parte 5): `auctionLicensePrice` (100), `auctionLicenseCurrencyTag` (""), `auctionCommissionPercent` (5), `auctionMinDuration` ("30s"), `auctionRange` (4.0), `auctionPedestalBlock` ("minecraft:oak_fence"), `auctionGuiTexture`.
+
+> Nota: la puja y la colocación son por comando (+ clic derecho muestra la info); la subasta cumple "GUI de Minecraft" con el item flotante y su nombre vivo. Se puede añadir una GUI de pujar al clic derecho si se quiere.
+
+### Cómo probar la parte 5 (2ª tanda)
+
+1. País con moneda y saldo (partes 1-3). Configura `auctionLicenseCurrencyTag` = siglas de un país con moneda (p. ej. `ESP`) + `/ecoadmin reload`.
+2. Como op: mira a un bloque y `/subastacrear` (repite para varios pedestales). Da saldo a los jugadores.
+3. `/subasta licencia` junto a un ayuntamiento → compra la licencia.
+4. Con un item en la mano, junto a un pedestal libre: `/subasta crear 50 ESP 2m` → el item flota y rota sobre el pedestal.
+5. Con otro jugador: `/subasta pujar 60` → se le descuenta 60; si otro puja 70, al primero se le devuelven 60. `/subasta info`, clic derecho en el pedestal.
+6. Espera a que venza (o pon `30s`): el ganador recibe el item, el vendedor cobra 70 menos la comisión (que va a la cuenta de su país). Desconéctate antes de ganar y reconéctate → recoges el item (o `/subasta recoger`).
+7. `/subasta cancelar` (sin pujas) devuelve el item. Reinicia: pedestales y subastas persisten.
+
+## Impuesto general del país (barra 0–100, 2ª tanda)
+
+Además de los impuestos con nombre (`/impuesto`, parte 6), el país tiene un **impuesto general** ajustable con una **barra de 0 a 100 %**: cobra ese porcentaje del **saldo de cada miembro** hacia la cuenta del país de forma periódica (`countryTaxPeriod`, por defecto `1h`).
+
+- **Barra en el ayuntamiento:** el líder abre la GUI del ayuntamiento y mueve el **slider "Impuestos: X%"** (se aplica al soltar).
+- **Por comando:** `/gobierno impuestos` (ver), `/gobierno impuestos <0-100>` (líder ajusta), `/gobierno impuestos cobrar` (líder fuerza el cobro ahora, para pruebas).
+- Se guarda en `finance.FinanceManager` (campo `taxRate` por país) y se cobra en el `tick` cada `countryTaxPeriod`.
+
+Cómo probar: `/gobierno impuestos 20` (o mueve la barra), da saldo a los miembros, `/gobierno impuestos cobrar` → cada miembro paga el 20% de su saldo a `/tesoreria`. Ajusta a 0 para desactivarlo.
 
 ## Parte 2 — Monedas y cuentas (implementada)
 

@@ -10,7 +10,7 @@ import net.minecraft.util.Identifier;
 public record OpenTownhallPayload(int price, String currencyId, String currencyName,
                                   int available, boolean configured,
                                   boolean hasCountry, String countryTag, String countryColor,
-                                  long circulation, double value, boolean canPrint) implements CustomPayload {
+                                  long circulation, double value, boolean canPrint, int taxRate) implements CustomPayload {
 
     public static final CustomPayload.Id<OpenTownhallPayload> ID =
             new CustomPayload.Id<>(Identifier.of(RealEconomy.MOD_ID, "open_townhall"));
@@ -28,11 +28,12 @@ public record OpenTownhallPayload(int price, String currencyId, String currencyN
                 buf.writeLong(value.circulation);
                 buf.writeDouble(value.value);
                 buf.writeBoolean(value.canPrint);
+                buf.writeVarInt(value.taxRate);
             },
             buf -> new OpenTownhallPayload(buf.readVarInt(), buf.readString(), buf.readString(),
                     buf.readVarInt(), buf.readBoolean(),
                     buf.readBoolean(), buf.readString(), buf.readString(),
-                    buf.readLong(), buf.readDouble(), buf.readBoolean())
+                    buf.readLong(), buf.readDouble(), buf.readBoolean(), buf.readVarInt())
     );
 
     @Override

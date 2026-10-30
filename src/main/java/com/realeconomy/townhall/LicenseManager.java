@@ -29,8 +29,10 @@ public class LicenseManager extends PersistentState {
             null
     );
 
-    /** playerUuid -> licencias disponibles. */
+    /** playerUuid -> licencias de tienda disponibles. */
     private final Map<UUID, Integer> available = new HashMap<>();
+    /** playerUuid -> licencias de subasta disponibles (parte 5, 2ª tanda). */
+    private final Map<UUID, Integer> auctionAvailable = new HashMap<>();
 
     public static LicenseManager get(MinecraftServer server) {
         PersistentStateManager psm = server.getWorld(World.OVERWORLD).getPersistentStateManager();
@@ -63,6 +65,33 @@ public class LicenseManager extends PersistentState {
         return true;
     }
 
+    // ---- Licencias de subasta (parte 5) ----
+
+    public int getAuction(UUID player) {
+        return auctionAvailable.getOrDefault(player, 0);
+    }
+
+    public void addAuction(UUID player, int amount) {
+        if (amount == 0) {
+            return;
+        }
+        int next = getAuction(player) + amount;
+        if (next <= 0) {
+            auctionAvailable.remove(player);
+        } else {
+            auctionAvailable.put(player, next);
+        }
+        markDirty();
+    }
+
+    public boolean consumeAuction(UUID player) {
+        if (getAuction(player) <= 0) {
+            return false;
+        }
+        addAuction(player, -1);
+        return true;
+    }
+
     @Override
     public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         NbtList list = new NbtList();
@@ -76,6 +105,17 @@ public class LicenseManager extends PersistentState {
             list.add(c);
         }
         nbt.put("licenses", list);
+        NbtList auctions = new NbtList();
+        for (Map.Entry<UUID, Integer> e : auctionAvailable.entrySet()) {
+            if (e.getValue() <= 0) {
+                continue;
+            }
+            NbtCompound c = new NbtCompound();
+            c.putUuid("uuid", e.getKey());
+            c.putInt("count", e.getValue());
+            auctions.add(c);
+        }
+        nbt.put("auctionLicenses", auctions);
         return nbt;
     }
 
@@ -85,6 +125,11 @@ public class LicenseManager extends PersistentState {
         for (int i = 0; i < list.size(); i++) {
             NbtCompound c = list.getCompound(i);
             mgr.available.put(c.getUuid("uuid"), c.getInt("count"));
+        }
+        NbtList auctions = nbt.getList("auctionLicenses", NbtElement.COMPOUND_TYPE);
+        for (int i = 0; i < auctions.size(); i++) {
+            NbtCompound c = auctions.getCompound(i);
+            mgr.auctionAvailable.put(c.getUuid("uuid"), c.getInt("count"));
         }
         return mgr;
     }
