@@ -118,10 +118,11 @@ public class GroupManager extends PersistentState {
             playerIndex.remove(uuid);
             invites.remove(uuid);
         }
-        // Limpia la cuenta del grupo y sus datos financieros (impuestos/sueldos).
+        // Limpia la cuenta del país, sus datos financieros (impuestos/sueldos) y sus partidos.
         if (server != null) {
             com.realeconomy.economy.BalanceManager.get(server).clear(com.realeconomy.finance.FinanceManager.accountUuid(g));
             com.realeconomy.finance.FinanceManager.get(server).removeGroup(g.getId());
+            com.realeconomy.party.PartyManager.get(server).removeByCountry(g.getId());
         }
         groups.remove(g.getId());
         markDirty();
@@ -141,6 +142,10 @@ public class GroupManager extends PersistentState {
         playerIndex.remove(uuid);
         if (name != null) {
             removeFromTeam(name);
+        }
+        // Al salir del país, sale también de su partido (un partido es siempre de un país).
+        if (server != null) {
+            com.realeconomy.party.PartyManager.get(server).leaveParty(uuid);
         }
         markDirty();
     }
@@ -200,6 +205,9 @@ public class GroupManager extends PersistentState {
     // ---- Sincronización de equipos de scoreboard ----
 
     public void onPlayerJoin(ServerPlayerEntity player) {
+        if (server != null) {
+            com.realeconomy.party.PartyManager.get(server).setMemberName(player.getUuid(), player.getNameForScoreboard());
+        }
         Group g = getByPlayer(player.getUuid());
         if (g == null) {
             return;

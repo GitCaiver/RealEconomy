@@ -42,6 +42,15 @@ public class ModConfig {
     /** Textura de fondo de la GUI de compra de la tienda (sustituible por resource pack). */
     public String shopGuiTexture = "realeconomy:textures/gui/shop.png";
 
+    // ---- Partidos políticos ----
+    /** Precio de crear un partido (se paga en el ayuntamiento del país, va a la cuenta del país). */
+    public int partyPrice = 100;
+    /**
+     * Siglas del país cuya moneda se usa para pagar la creación de un partido.
+     * Vacío = se usa la moneda del propio país del jugador (lo habitual).
+     */
+    public String partyCurrencyTag = "";
+
     // ---- Mercados de grupo (parte 7) ----
     /** Máximo de mercados que puede tener un grupo. */
     public int maxMarketsPerGroup = 2;

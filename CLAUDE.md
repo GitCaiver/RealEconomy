@@ -1,6 +1,8 @@
 # RealEconomy
 
-Mod de Minecraft **1.21.1** con **Fabric** que implementa una economía completa para servidores, basada en grupos: monedas propias, bancos, ayuntamientos, tiendas de jugadores, impuestos, préstamos, trabajos y NPCs.
+Mod de Minecraft **1.21.1** con **Fabric** que implementa una economía completa para servidores, basada en **países** (con partidos políticos dentro): monedas propias, bancos, ayuntamientos, tiendas de jugadores, impuestos, préstamos, trabajos y NPCs.
+
+> **Nota de terminología (2ª tanda):** lo que antes eran "grupos" ahora son **PAÍSES**. Internamente las clases siguen llamándose `Group`/`GroupManager` (y el `PersistentState` sigue siendo `realeconomy_groups`) para **migrar los datos existentes sin perderlos**; de cara al jugador todo dice "país". El comando principal es `/pais` (alias `/paises`, `/grupo`, `/group`).
 
 - **Mod id:** `realeconomy`
 - **Loader:** Fabric
@@ -29,51 +31,74 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 
 ## Estado por partes
 
-1. **Grupos** ✅ — siglas, color, líder, miembros, lista de jugadores con `[SIGLAS]` en color.
+1. **Países** (antes "Grupos") ✅ — siglas, color, líder, miembros, lista de jugadores con `[SIGLAS]` en color. **Partidos políticos** dentro de cada país (se fundan en el ayuntamiento pagando a la cuenta del país).
 2. **Monedas (icono por URL) y cuentas** ✅ — item físico de moneda por divisa, icono descargado/cacheado/sincronizado, libro de saldos.
 3. **Banco NPC con interfaz** ✅ — NPC aldeano, GUI vanilla con ingresar/retirar/transferir.
 4. **Ayuntamiento y licencias** ✅ — NPC ayuntamiento, GUI de compra de licencias (consumibles).
 5. **Tiendas de jugadores (venta y compra)** ✅ — NPC tienda, ofertas de venta/compra, almacén, GUI de compra.
-6. **Impuestos y cuenta del grupo** ✅ — cuenta del grupo, impuestos (fijo/%) y sueldos recurrentes en tiempo real, subvenciones.
-7. **Mercados de grupo (NPCs)** ✅ — NPC de mercado del grupo que compra/vende items por monedas físicas desde su caja; incluye el cambio esmeraldas↔monedas.
-8. **Trabajos y sueldos** ✅ — minería/tala/agricultura/banca; el líder fija el sueldo por acción y se paga desde la cuenta del grupo.
-9. **Banquero y préstamos** ✅ — el líder presta desde la cuenta del grupo (capital, interés, plazo real); al vencer se cobra solo del saldo y, si no llega, queda deuda.
+6. **Impuestos y cuenta del país** ✅ — cuenta del país, impuestos (fijo/%) y sueldos recurrentes en tiempo real, subvenciones.
+7. **Mercados de país (NPCs)** ✅ — NPC de mercado que compra/vende items por monedas físicas desde su caja; incluye el cambio esmeraldas↔monedas.
+8. **Trabajos y sueldos** ✅ — minería/tala/agricultura/banca; el líder fija el sueldo por acción y se paga desde la cuenta del país.
+9. **Banquero y préstamos** ✅ — el líder presta desde la cuenta del país (capital, interés, plazo real); al vencer se cobra solo del saldo y, si no llega, queda deuda.
 
-## Parte 1 — Grupos (implementada)
+### Segunda tanda (cambios y añadidos en curso)
 
-Modelo (`com.realeconomy.group`):
-- `Group` — datos de un grupo (id UUID estable, nombre, siglas, color `Formatting`, líder, mapa miembro→nombre). Serialización NBT.
-- `GroupManager` — `PersistentState`, fuente de verdad. Índices jugador→grupo y gestión de siglas únicas. Refleja cada grupo en un **equipo de scoreboard** (`re_<id>`) para pintar el nombre del jugador con las siglas y el color del grupo de forma 100 % vanilla (tab list, placa sobre la cabeza y chat). Las invitaciones son en memoria (se pierden al reiniciar, por diseño).
+1. **Países y partidos** ✅ — "grupos" → países; partidos políticos dentro de cada país.
+2. **Moneda por defecto** ⏳ — crear país crea su moneda automáticamente con item dorado propio.
+3. **Gobierno y política monetaria** ⏳ — imprimir dinero, devaluación por circulación, estadísticas, obras públicas.
+4. **NPCs compradores por categoría** ⏳ — oferta y demanda por categorías (tags).
+5. **Subastas** ⏳ — licencia, sitio con pedestales, pujas en tiempo real.
+   - (El "banquero y préstamos" original ya está hecho como parte 9.)
 
-Comandos (`/group`, alias `/grupo`):
+## Parte 1 (2ª tanda) — Países y partidos (implementada)
+
+Los antiguos "grupos" son ahora **PAÍSES**. Para no perder datos, las clases internas siguen siendo `Group`/`GroupManager` y el `PersistentState` sigue siendo `realeconomy_groups`; **los países existentes se migran solos**. Todo el texto de cara al jugador dice "país".
+
+Modelo de país (`com.realeconomy.group`):
+- `Group` — datos de un país (id UUID estable, nombre, siglas, color `Formatting`, líder, mapa miembro→nombre). Serialización NBT.
+- `GroupManager` — `PersistentState`, fuente de verdad. Índices jugador→país y gestión de siglas únicas. Refleja cada país en un **equipo de scoreboard** (`re_<id>`) para pintar el nombre con las siglas y el color del país de forma 100 % vanilla (tab, placa y chat). **Esto vale también para los miembros de un partido: siempre se ven las siglas del país** (ej. `Caiver [ESP]`). Las invitaciones son en memoria.
+
+Modelo de partido (`com.realeconomy.party`):
+- `Party` — un partido dentro de un país: id, countryId, nombre, color, fundador (líder del partido) y miembros. Un jugador solo puede estar en **un** partido, y de su propio país. NBT.
+- `PartyManager` — `PersistentState` (`realeconomy_parties`). Índice jugador→partido; crear/unirse/salir/disolver; al disolver el país o al salir un miembro del país, se limpia su partido.
+
+Comandos de país (`/pais`, alias `/paises`, `/grupo`, `/group`):
 
 | Comando | Quién | Qué hace |
 |---|---|---|
-| `/group create <siglas> <color> [nombre]` | cualquiera sin grupo | crea el grupo (siglas 2-4 letras únicas). Si no das nombre, usa las siglas |
-| `/group invite <jugador>` | líder | invita a un jugador en línea |
-| `/group accept [siglas]` | invitado | acepta la invitación (las siglas solo si tienes varias) |
-| `/group deny <siglas>` | invitado | rechaza una invitación |
-| `/group kick <jugador>` | líder | expulsa a un miembro |
-| `/group leave` | miembro | sale del grupo (el líder no puede; debe transferir o disolver) |
-| `/group transfer <jugador>` | líder | cede el liderazgo a un miembro |
-| `/group disband` | líder | disuelve el grupo |
-| `/group settag <siglas>` | líder | cambia las siglas |
-| `/group setcolor <color>` | líder | cambia el color |
-| `/group setname <nombre>` | líder | cambia el nombre |
-| `/group info [siglas]` | cualquiera | info del grupo (propio o el indicado) |
-| `/group list` | cualquiera | lista todos los grupos |
+| `/pais create <siglas> <color> [nombre]` | sin país | crea el país (siglas 2-4 letras únicas) |
+| `/pais invite\|accept\|deny\|kick\|leave\|transfer\|disband` | según rol | igual que antes (invitar, aceptar, expulsar, salir, transferir, disolver) |
+| `/pais settag\|setcolor\|setname` | líder | cambia siglas / color / nombre |
+| `/pais info [siglas]` | cualquiera | info del país (incluye sus partidos) |
+| `/pais list` | cualquiera | lista todos los países |
+
+Comandos de partido (`/partido`, alias `/party`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/partido crear <color> <nombre>` | miembro de un país, junto al ayuntamiento | funda un partido pagando `partyPrice` a la cuenta del país |
+| `/partido unirse <nombre>` | miembro del país | se une a un partido de tu país (libre) |
+| `/partido salir` | miembro de partido | sale del partido |
+| `/partido lista` | miembro | lista los partidos de tu país |
+| `/partido info [nombre]` | miembro | info de un partido |
+| `/partido color <color>` | fundador | cambia el color del partido |
+| `/partido borrar` | fundador | disuelve el partido |
+
+Config (partidos): `partyPrice` (100), `partyCurrencyTag` (vacío = moneda del propio país).
+
+> El pago de fundar un partido requiere estar junto a un **ayuntamiento** (parte 4) y va a la **cuenta del país**. La moneda es la del propio país salvo que se configure otra en `partyCurrencyTag`.
 
 Colores aceptados (español o inglés): rojo, verde, azul, amarillo, dorado/naranja, cian, rosa, morado_oscuro, blanco, gris, negro, y variantes `_oscuro`.
 
-### Cómo probar la parte 1
+### Cómo probar la parte 1 (2ª tanda)
 
-1. `./gradlew runServer` (acepta el EULA la primera vez: pon `eula=true` en `run/eula.txt` y vuelve a arrancar).
-2. Conéctate con un cliente 1.21.1 (con Fabric + Fabric API) o usa `./gradlew runClient`.
-3. En el juego:
-   - `/group create ESP rojo España` → tu nombre pasa a verse `TuNombre [ESP]` en rojo en el tab (Tab), sobre la cabeza y en el chat.
-   - Con un segundo jugador: `/group invite Jugador2`, luego el otro hace `/group accept`.
-   - `/group info`, `/group list`, `/group setcolor azul`, `/group settag ES`.
-   - Reinicia el servidor y comprueba que los grupos y colores persisten.
+1. `./gradlew runServer` (EULA la primera vez) + cliente 1.21.1 con Fabric, o `./gradlew runClient`.
+2. **País:** `/pais create ESP rojo España` → tu nombre se ve `TuNombre [ESP]` en rojo (tab, placa, chat). `/pais info`, `/pais list` siguen funcionando; `/grupo` y `/group` también (compatibilidad).
+3. **Migración:** si ya tenías "grupos" de antes, al arrancar siguen existiendo como países (mismos datos, mismas siglas y colores).
+4. **Partido:** necesitas moneda del país (`/moneda crear Peseta`) y un ayuntamiento cerca (`/ayuntamientocrear` como op). Dale saldo: `/ecoadmin saldo set TuNombre ESP 500`. Junto al ayuntamiento: `/partido crear azul Progresistas` → se cobran 100 a tu saldo y van a `/tesoreria` del país.
+5. Con otro jugador del mismo país: `/partido unirse Progresistas`. Comprueba que **sigue viéndose `[ESP]`** sobre su cabeza (no el partido). `/partido lista`, `/partido info`.
+6. `/partido salir`, `/partido borrar` (fundador). Sal del país (`/pais leave`) y verás que también sales del partido.
+7. Reinicia el servidor: países y partidos persisten.
 
 ## Parte 2 — Monedas y cuentas (implementada)
 

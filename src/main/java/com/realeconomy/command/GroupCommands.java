@@ -79,7 +79,10 @@ public final class GroupCommands {
                         .executes(GroupCommands::list));
 
         com.mojang.brigadier.tree.LiteralCommandNode<ServerCommandSource> node = dispatcher.register(root);
-        // Alias en español.
+        // Los "grupos" son ahora PAÍSES: /pais es el comando principal; se mantienen
+        // /grupo y /group como alias para no romper costumbres ni datos existentes.
+        dispatcher.register(literal("pais").redirect(node));
+        dispatcher.register(literal("paises").redirect(node));
         dispatcher.register(literal("grupo").redirect(node));
     }
 
@@ -90,7 +93,7 @@ public final class GroupCommands {
         GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
 
         if (mgr.getByPlayer(player.getUuid()) != null) {
-            error(ctx, "Ya perteneces a un grupo. Sal de él con /group leave antes de crear otro.");
+            error(ctx, "Ya perteneces a un país. Sal de él con /pais leave antes de crear otro.");
             return 0;
         }
 
@@ -101,7 +104,7 @@ public final class GroupCommands {
             return 0;
         }
         if (mgr.tagExists(tag)) {
-            error(ctx, "Ya existe un grupo con las siglas [" + GroupManager.normalizeTag(tag) + "].");
+            error(ctx, "Ya existe un país con las siglas [" + GroupManager.normalizeTag(tag) + "].");
             return 0;
         }
 
@@ -115,7 +118,7 @@ public final class GroupCommands {
         String name = (nameArg == null || nameArg.isBlank()) ? GroupManager.normalizeTag(tag) : nameArg;
         Group g = mgr.createGroup(name, tag, color, player);
 
-        ctx.getSource().sendFeedback(() -> Text.literal("Grupo creado: ")
+        ctx.getSource().sendFeedback(() -> Text.literal("País creado: ")
                 .append(groupLabel(g)), true);
         return 1;
     }
@@ -126,7 +129,7 @@ public final class GroupCommands {
 
         Group g = mgr.getByPlayer(player.getUuid());
         if (g == null) {
-            error(ctx, "No perteneces a ningún grupo.");
+            error(ctx, "No perteneces a ningún país.");
             return 0;
         }
         if (!g.isLeader(player.getUuid())) {
@@ -136,7 +139,7 @@ public final class GroupCommands {
 
         ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "jugador");
         if (mgr.getByPlayer(target.getUuid()) != null) {
-            error(ctx, target.getNameForScoreboard() + " ya pertenece a un grupo.");
+            error(ctx, target.getNameForScoreboard() + " ya pertenece a un país.");
             return 0;
         }
         if (target.getUuid().equals(player.getUuid())) {
@@ -149,7 +152,7 @@ public final class GroupCommands {
                 .append(groupLabel(g)), false);
         target.sendMessage(Text.literal("Has recibido una invitación de ")
                 .append(groupLabel(g))
-                .append(Text.literal(". Usa /group accept " + g.getTag() + " para unirte o /group deny " + g.getTag() + " para rechazarla.")));
+                .append(Text.literal(". Usa /pais accept " + g.getTag() + " para unirte o /pais deny " + g.getTag() + " para rechazarla.")));
         return 1;
     }
 
@@ -158,7 +161,7 @@ public final class GroupCommands {
         GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
 
         if (mgr.getByPlayer(player.getUuid()) != null) {
-            error(ctx, "Ya perteneces a un grupo.");
+            error(ctx, "Ya perteneces a un país.");
             return 0;
         }
 
@@ -166,7 +169,7 @@ public final class GroupCommands {
         if (tagArg != null) {
             g = mgr.getByTag(tagArg);
             if (g == null || !mgr.hasInvite(player.getUuid(), g)) {
-                error(ctx, "No tienes una invitación de ese grupo.");
+                error(ctx, "No tienes una invitación de ese país.");
                 return 0;
             }
         } else {
@@ -176,7 +179,7 @@ public final class GroupCommands {
                 return 0;
             }
             if (ids.size() > 1) {
-                error(ctx, "Tienes varias invitaciones. Especifica las siglas: /group accept <siglas>.");
+                error(ctx, "Tienes varias invitaciones. Especifica las siglas: /pais accept <siglas>.");
                 return 0;
             }
             g = mgr.getById(ids.iterator().next());
@@ -189,7 +192,7 @@ public final class GroupCommands {
         mgr.addMember(g, player.getUuid(), player.getNameForScoreboard());
         Group finalGroup = g;
         ctx.getSource().sendFeedback(() -> Text.literal("Te has unido a ").append(groupLabel(finalGroup)), false);
-        notifyMembers(ctx.getSource().getServer(), g, Text.literal(player.getNameForScoreboard() + " se ha unido al grupo."), player.getUuid());
+        notifyMembers(ctx.getSource().getServer(), g, Text.literal(player.getNameForScoreboard() + " se ha unido al país."), player.getUuid());
         return 1;
     }
 
@@ -199,7 +202,7 @@ public final class GroupCommands {
         String tag = StringArgumentType.getString(ctx, "siglas");
         Group g = mgr.getByTag(tag);
         if (g == null || !mgr.hasInvite(player.getUuid(), g)) {
-            error(ctx, "No tienes una invitación de ese grupo.");
+            error(ctx, "No tienes una invitación de ese país.");
             return 0;
         }
         mgr.removeInvite(player.getUuid(), g);
@@ -214,7 +217,7 @@ public final class GroupCommands {
 
         Group g = mgr.getByPlayer(player.getUuid());
         if (g == null) {
-            error(ctx, "No perteneces a ningún grupo.");
+            error(ctx, "No perteneces a ningún país.");
             return 0;
         }
         if (!g.isLeader(player.getUuid())) {
@@ -225,16 +228,16 @@ public final class GroupCommands {
         String name = StringArgumentType.getString(ctx, "jugador");
         UUID targetUuid = resolveMember(g, name);
         if (targetUuid == null) {
-            error(ctx, "Ese jugador no está en tu grupo.");
+            error(ctx, "Ese jugador no está en tu país.");
             return 0;
         }
         if (targetUuid.equals(player.getUuid())) {
-            error(ctx, "No puedes expulsarte a ti mismo. Usa /group disband para disolver el grupo.");
+            error(ctx, "No puedes expulsarte a ti mismo. Usa /pais disband para disolver el país.");
             return 0;
         }
 
         mgr.removeMember(g, targetUuid);
-        ctx.getSource().sendFeedback(() -> Text.literal("Has expulsado a " + name + " del grupo."), false);
+        ctx.getSource().sendFeedback(() -> Text.literal("Has expulsado a " + name + " del país."), false);
         ServerPlayerEntity target = server.getPlayerManager().getPlayer(targetUuid);
         if (target != null) {
             target.sendMessage(Text.literal("Has sido expulsado de ").append(groupLabel(g)));
@@ -248,17 +251,17 @@ public final class GroupCommands {
 
         Group g = mgr.getByPlayer(player.getUuid());
         if (g == null) {
-            error(ctx, "No perteneces a ningún grupo.");
+            error(ctx, "No perteneces a ningún país.");
             return 0;
         }
         if (g.isLeader(player.getUuid())) {
-            error(ctx, "Eres el líder. Transfiere el liderazgo (/group transfer <jugador>) o disuelve el grupo (/group disband).");
+            error(ctx, "Eres el líder. Transfiere el liderazgo (/pais transfer <jugador>) o disuelve el país (/pais disband).");
             return 0;
         }
 
         mgr.removeMember(g, player.getUuid());
         ctx.getSource().sendFeedback(() -> Text.literal("Has salido de ").append(groupLabel(g)), false);
-        notifyMembers(ctx.getSource().getServer(), g, Text.literal(player.getNameForScoreboard() + " ha salido del grupo."), player.getUuid());
+        notifyMembers(ctx.getSource().getServer(), g, Text.literal(player.getNameForScoreboard() + " ha salido del país."), player.getUuid());
         return 1;
     }
 
@@ -274,7 +277,7 @@ public final class GroupCommands {
         String name = StringArgumentType.getString(ctx, "jugador");
         UUID targetUuid = resolveMember(g, name);
         if (targetUuid == null) {
-            error(ctx, "Ese jugador no está en tu grupo.");
+            error(ctx, "Ese jugador no está en tu país.");
             return 0;
         }
         mgr.setLeader(g, targetUuid);
@@ -288,12 +291,12 @@ public final class GroupCommands {
 
         Group g = mgr.getByPlayer(player.getUuid());
         if (g == null || !g.isLeader(player.getUuid())) {
-            error(ctx, "Solo el líder puede disolver el grupo.");
+            error(ctx, "Solo el líder puede disolver el país.");
             return 0;
         }
-        notifyMembers(ctx.getSource().getServer(), g, Text.literal("Tu grupo ha sido disuelto por el líder."), player.getUuid());
+        notifyMembers(ctx.getSource().getServer(), g, Text.literal("Tu país ha sido disuelto por el líder."), player.getUuid());
         mgr.disband(g);
-        ctx.getSource().sendFeedback(() -> Text.literal("Grupo disuelto."), true);
+        ctx.getSource().sendFeedback(() -> Text.literal("País disuelto."), true);
         return 1;
     }
 
@@ -362,14 +365,14 @@ public final class GroupCommands {
         if (tagArg != null) {
             g = mgr.getByTag(tagArg);
             if (g == null) {
-                error(ctx, "No existe un grupo con esas siglas.");
+                error(ctx, "No existe un país con esas siglas.");
                 return 0;
             }
         } else {
             ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
             g = mgr.getByPlayer(player.getUuid());
             if (g == null) {
-                error(ctx, "No perteneces a ningún grupo. Usa /group info <siglas> para ver otro.");
+                error(ctx, "No perteneces a ningún país. Usa /pais info <siglas> para ver otro.");
                 return 0;
             }
         }
@@ -377,11 +380,22 @@ public final class GroupCommands {
         final Group fg = g;
         ctx.getSource().sendFeedback(() -> {
             MutableBuilder b = new MutableBuilder();
-            b.line(Text.literal("=== Grupo ").append(groupLabel(fg)).append(Text.literal(" ===")));
+            b.line(Text.literal("=== País ").append(groupLabel(fg)).append(Text.literal(" ===")));
             b.line(Text.literal("Nombre: " + fg.getName()));
             b.line(Text.literal("Color: " + fg.getColor().getName()));
             b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
             b.line(Text.literal("Miembros (" + fg.size() + "): " + String.join(", ", fg.getMemberNames().values())));
+            var parties = com.realeconomy.party.PartyManager.get(ctx.getSource().getServer()).partiesOf(fg.getId());
+            if (!parties.isEmpty()) {
+                StringBuilder names = new StringBuilder();
+                for (var p : parties) {
+                    if (names.length() > 0) {
+                        names.append(", ");
+                    }
+                    names.append(p.getName()).append(" (").append(p.size()).append(")");
+                }
+                b.line(Text.literal("Partidos (" + parties.size() + "): " + names));
+            }
             return b.build();
         }, false);
         return 1;
@@ -391,12 +405,12 @@ public final class GroupCommands {
         GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
         var groups = mgr.getGroups();
         if (groups.isEmpty()) {
-            ctx.getSource().sendFeedback(() -> Text.literal("No hay grupos todavía."), false);
+            ctx.getSource().sendFeedback(() -> Text.literal("No hay países todavía."), false);
             return 1;
         }
         ctx.getSource().sendFeedback(() -> {
             MutableBuilder b = new MutableBuilder();
-            b.line(Text.literal("=== Grupos (" + groups.size() + ") ==="));
+            b.line(Text.literal("=== Países (" + groups.size() + ") ==="));
             for (Group g : groups) {
                 b.line(groupLabel(g).copy().append(Text.literal(" - " + g.getName() + " (" + g.size() + " miembros)")));
             }
