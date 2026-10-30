@@ -19,6 +19,14 @@ public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static ModConfig INSTANCE = new ModConfig();
 
+    // ---- Tema visual de las interfaces (único, reutilizado por todas las pantallas) ----
+    /** Textura del panel/marco de madera (nine-slice 72x72, borde 14). Sustituible por resource pack o config. */
+    public String themePanelTexture = "realeconomy:textures/gui/theme/panel.png";
+    /** Textura del botón crema/dorado (nine-slice 32x20, borde 6). Sustituible por resource pack o config. */
+    public String themeButtonTexture = "realeconomy:textures/gui/theme/button.png";
+    /** Textura de las casillas hundidas de los listados (nine-slice 26x26, borde 6). */
+    public String themeSlotTexture = "realeconomy:textures/gui/theme/slot.png";
+
     // ---- Banco ----
     /** Distancia máxima (bloques) a la que se puede usar un banco. */
     public double bankRange = 6.0;

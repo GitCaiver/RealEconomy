@@ -107,24 +107,32 @@ public class RealEconomy implements ModInitializer {
                 return ActionResult.PASS;
             }
             if (entity instanceof VillagerEntity villager && player instanceof ServerPlayerEntity serverPlayer) {
-                if (BankEntities.isBank(villager)) {
-                    BankActions.openFor(serverPlayer);
-                    return ActionResult.SUCCESS;
-                }
-                if (TownhallEntities.isTownhall(villager)) {
-                    TownhallActions.openFor(serverPlayer);
-                    return ActionResult.SUCCESS;
-                }
-                if (ShopEntities.isShop(villager)) {
-                    ShopActions.openForEntity(serverPlayer, villager);
-                    return ActionResult.SUCCESS;
-                }
-                if (MarketEntities.isMarket(villager)) {
-                    MarketActions.openForEntity(serverPlayer, villager);
-                    return ActionResult.SUCCESS;
-                }
-                if (BuyerEntities.isBuyer(villager)) {
-                    BuyerActions.openForEntity(serverPlayer, villager);
+                try {
+                    if (BankEntities.isBank(villager)) {
+                        BankActions.openFor(serverPlayer);
+                        return ActionResult.SUCCESS;
+                    }
+                    if (TownhallEntities.isTownhall(villager)) {
+                        TownhallActions.openFor(serverPlayer);
+                        return ActionResult.SUCCESS;
+                    }
+                    if (ShopEntities.isShop(villager)) {
+                        ShopActions.openForEntity(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                    if (MarketEntities.isMarket(villager)) {
+                        MarketActions.openForEntity(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                    if (BuyerEntities.isBuyer(villager)) {
+                        BuyerActions.openForEntity(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                } catch (Exception e) {
+                    // Si algo falla al abrir la GUI, lo registramos en vez de tragarlo en silencio.
+                    LOGGER.error("Error al abrir la interfaz del NPC de RealEconomy", e);
+                    serverPlayer.sendMessage(net.minecraft.text.Text.literal(
+                            "Error al abrir la interfaz (revisa el log del servidor)."), false);
                     return ActionResult.SUCCESS;
                 }
             }

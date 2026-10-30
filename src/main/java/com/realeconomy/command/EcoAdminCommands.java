@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.realeconomy.bank.BankActions;
 import com.realeconomy.config.ModConfig;
 import com.realeconomy.economy.BalanceManager;
 import com.realeconomy.economy.Currency;
@@ -12,12 +13,21 @@ import com.realeconomy.economy.CurrencyManager;
 import com.realeconomy.group.Group;
 import com.realeconomy.group.GroupManager;
 import com.realeconomy.item.ModItems;
+import com.realeconomy.network.BuyerCategoryView;
+import com.realeconomy.network.OfferView;
+import com.realeconomy.network.OpenBuyerPayload;
+import com.realeconomy.network.OpenMarketPayload;
+import com.realeconomy.network.OpenShopPayload;
+import com.realeconomy.townhall.TownhallActions;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
+import java.util.List;
 import java.util.Map;
 
 import static net.minecraft.server.command.CommandManager.argument;
@@ -52,7 +62,70 @@ public final class EcoAdminCommands {
                                                 .then(argument("cantidad", IntegerArgumentType.integer())
                                                         .executes(ctx -> balanceSet(ctx, false)))))))
                 .then(literal("reload")
-                        .executes(EcoAdminCommands::reload)));
+                        .executes(EcoAdminCommands::reload))
+                .then(literal("debug")
+                        .then(literal("banco").executes(ctx -> debug(ctx, "banco")))
+                        .then(literal("ayuntamiento").executes(ctx -> debug(ctx, "ayuntamiento")))
+                        .then(literal("tienda").executes(ctx -> debug(ctx, "tienda")))
+                        .then(literal("mercado").executes(ctx -> debug(ctx, "mercado")))
+                        .then(literal("comprador").executes(ctx -> debug(ctx, "comprador")))));
+    }
+
+    /** Abre una interfaz del mod sin necesidad de NPC (para probar las pantallas en local). */
+    private static int debug(CommandContext<ServerCommandSource> ctx, String which) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        switch (which) {
+            case "banco" -> BankActions.openFor(player);
+            case "ayuntamiento" -> TownhallActions.openFor(player);
+            case "tienda" -> ServerPlayNetworking.send(player, new OpenShopPayload("debug", player.getNameForScoreboard(), demoOffers(player)));
+            case "mercado" -> ServerPlayNetworking.send(player, new OpenMarketPayload("debug", "[DEMO]", demoOffers(player)));
+            case "comprador" -> ServerPlayNetworking.send(player, new OpenBuyerPayload("🛒 Comprador [DEMO]", demoCurrencyName(player), demoCategories()));
+            default -> {
+                ctx.getSource().sendError(Text.literal("Interfaz desconocida."));
+                return 0;
+            }
+        }
+        ctx.getSource().sendFeedback(() -> Text.literal("Abriendo interfaz de prueba: " + which + "."), false);
+        return 1;
+    }
+
+    /** Id de moneda de prueba: la del país del jugador si tiene, si no un marcador. */
+    private static String demoCurrencyId(ServerPlayerEntity player) {
+        Group g = GroupManager.get(player.getServer()).getByPlayer(player.getUuid());
+        if (g != null) {
+            Currency c = CurrencyManager.get(player.getServer()).getByGroup(g.getId());
+            if (c != null) {
+                return c.getId();
+            }
+        }
+        return "demo";
+    }
+
+    private static String demoCurrencyName(ServerPlayerEntity player) {
+        Group g = GroupManager.get(player.getServer()).getByPlayer(player.getUuid());
+        if (g != null) {
+            Currency c = CurrencyManager.get(player.getServer()).getByGroup(g.getId());
+            if (c != null) {
+                return c.getName();
+            }
+        }
+        return "Moneda";
+    }
+
+    private static List<OfferView> demoOffers(ServerPlayerEntity player) {
+        String cur = demoCurrencyId(player);
+        return List.of(
+                new OfferView(0, OfferView.SELL, new ItemStack(Items.DIAMOND), 25, cur, 12),
+                new OfferView(1, OfferView.SELL, new ItemStack(Items.BREAD), 4, cur, 64),
+                new OfferView(2, OfferView.BUY, new ItemStack(Items.OAK_LOG), 3, cur, 40));
+    }
+
+    private static List<BuyerCategoryView> demoCategories() {
+        return List.of(
+                new BuyerCategoryView("madera", 5, 1.0),
+                new BuyerCategoryView("minerales", 12, 0.65),
+                new BuyerCategoryView("comida", 3, 0.30),
+                new BuyerCategoryView("cultivos", 4, 0.85));
     }
 
     private static int reload(CommandContext<ServerCommandSource> ctx) {

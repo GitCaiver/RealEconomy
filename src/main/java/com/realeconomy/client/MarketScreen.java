@@ -1,77 +1,60 @@
 package com.realeconomy.client;
 
-import com.realeconomy.config.ModConfig;
+import com.realeconomy.client.ui.Theme;
+import com.realeconomy.client.ui.ThemedButton;
+import com.realeconomy.client.ui.ThemedScreen;
 import com.realeconomy.network.CurrencyEntry;
 import com.realeconomy.network.MarketActionPayload;
 import com.realeconomy.network.OfferView;
 import com.realeconomy.network.OpenMarketPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
 
-/** Interfaz de compra/venta de un mercado de grupo (para clientes). */
-public class MarketScreen extends Screen {
+/** Interfaz de compra/venta de un mercado de país (para clientes), con el tema de madera. */
+public class MarketScreen extends ThemedScreen {
 
-    private static final int BG_W = 230;
-    private static final int BG_H = 186;
+    private static final int BG_W = 238;
+    private static final int BG_H = 184;
     private static final int ROW_H = 26;
     private static final int MAX_ROWS = 5;
-    private static final int LIST_TOP = 28;
 
     private OpenMarketPayload data;
-    private int x;
-    private int y;
 
     public MarketScreen(OpenMarketPayload data) {
-        super(Text.literal("Mercado"));
+        super(Text.literal("Mercado " + data.label()), BG_W, BG_H);
         this.data = data;
     }
 
-    private Identifier background() {
-        try {
-            return Identifier.of(ModConfig.get().marketGuiTexture);
-        } catch (Exception e) {
-            return Identifier.of("realeconomy", "textures/gui/shop.png");
-        }
-    }
-
     @Override
-    protected void init() {
-        this.x = (this.width - BG_W) / 2;
-        this.y = (this.height - BG_H) / 2;
-
+    protected void initContent() {
+        int cl = contentLeft();
         int count = Math.min(MAX_ROWS, data.offers().size());
         for (int i = 0; i < count; i++) {
             OfferView o = data.offers().get(i);
-            int rowY = y + LIST_TOP + i * ROW_H;
+            int rowY = contentTop() + i * ROW_H;
             boolean sell = o.type() == OfferView.SELL;
             Text label = Text.literal(sell ? "Comprar" : "Vender");
-            ButtonWidget btn = ButtonWidget.builder(label, b -> {
+            this.addDrawableChild(ThemedButton.of(cl + contentWidth() - 60, rowY + 3, 58, 19, label, b -> {
                 int action = sell ? MarketActionPayload.BUY : MarketActionPayload.SELL;
                 int amount = hasShiftDown() ? 64 : 1;
                 ClientPlayNetworking.send(new MarketActionPayload(data.marketId(), o.index(), action, amount));
-            }).dimensions(x + BG_W - 72, rowY + 2, 60, 20).build();
-            this.addDrawableChild(btn);
+            }));
         }
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        this.renderBackground(ctx, mouseX, mouseY, delta);
-        ctx.drawTexture(background(), x, y, BG_W, BG_H, 0.0F, 0.0F, BG_W, BG_H, 256, 256);
-        ctx.drawText(this.textRenderer, Text.literal("Mercado " + data.label()), x + 8, y + 9, 0x404040, false);
-
+    protected void renderContent(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        int cl = contentLeft();
         int count = Math.min(MAX_ROWS, data.offers().size());
         for (int i = 0; i < count; i++) {
             OfferView o = data.offers().get(i);
-            int rowY = y + LIST_TOP + i * ROW_H;
+            int rowY = contentTop() + i * ROW_H;
             boolean sell = o.type() == OfferView.SELL;
 
-            ctx.drawItem(o.item(), x + 12, rowY + 4);
+            Theme.slot(ctx, cl, rowY, contentWidth(), ROW_H - 3);
+            ctx.drawItem(o.item(), cl + 4, rowY + 3);
 
             CurrencyEntry entry = ClientCurrencyStore.getEntry(o.currencyId());
             String money = entry != null ? entry.name() : o.currencyId();
@@ -81,25 +64,18 @@ public class MarketScreen extends Screen {
             }
 
             String title = (sell ? "Vende: " : "Compra: ") + o.item().getName().getString();
-            ctx.drawText(this.textRenderer, Text.literal(title), x + 34, rowY + 2, 0x202020, false);
-            ctx.drawText(this.textRenderer, Text.literal(o.price() + " ").append(Text.literal(money).formatted(color))
-                            .append(Text.literal(sell ? ("  (stock: " + o.available() + ")") : ("  (puede: " + o.available() + ")"))),
-                    x + 34, rowY + 13, 0x404040, false);
+            text(ctx, Text.literal(title), cl + 24, rowY + 3, Theme.TEXT);
+            text(ctx, Text.literal(o.price() + " ").append(Text.literal(money).formatted(color))
+                            .append(Text.literal(sell ? ("  (stock " + o.available() + ")") : ("  (puede " + o.available() + ")"))),
+                    cl + 24, rowY + 14, Theme.TEXT_DIM);
         }
 
         if (data.offers().isEmpty()) {
-            ctx.drawText(this.textRenderer, Text.literal("Este mercado no tiene ofertas."), x + 14, y + LIST_TOP + 6, 0x707070, false);
+            text(ctx, "Este mercado no tiene ofertas.", cl, contentTop() + 6, Theme.TEXT_DIM);
         } else {
-            ctx.drawText(this.textRenderer, Text.literal("Shift: comprar/vender x64").formatted(Formatting.DARK_GRAY),
-                    x + 8, y + BG_H - 11, 0x606060, false);
+            text(ctx, Text.literal("Mantén Shift para x64").formatted(Formatting.ITALIC),
+                    cl, contentTop() + MAX_ROWS * ROW_H + 2, Theme.TEXT_DIM);
         }
-
-        super.render(ctx, mouseX, mouseY, delta);
-    }
-
-    @Override
-    public boolean shouldPause() {
-        return false;
     }
 
     public void refresh(OpenMarketPayload data) {

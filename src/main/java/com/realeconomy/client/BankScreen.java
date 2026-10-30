@@ -1,32 +1,30 @@
 package com.realeconomy.client;
 
-import com.realeconomy.config.ModConfig;
+import com.realeconomy.client.ui.Theme;
+import com.realeconomy.client.ui.ThemedButton;
+import com.realeconomy.client.ui.ThemedScreen;
 import com.realeconomy.item.ModItems;
 import com.realeconomy.network.BankActionPayload;
 import com.realeconomy.network.CurrencyEntry;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Interfaz del banco (estética vanilla). Muestra saldos y permite ingresar, retirar y transferir. */
-public class BankScreen extends Screen {
+/** Interfaz del banco (tema de madera): saldos y botones de ingresar, retirar y transferir. */
+public class BankScreen extends ThemedScreen {
 
-    private static final int BG_W = 210;
-    private static final int BG_H = 190;
-    private static final int ROW_H = 20;
-    private static final int MAX_ROWS = 5;
-    private static final int LIST_TOP = 30;
+    private static final int BG_W = 222;
+    private static final int BG_H = 186;
+    private static final int ROW_H = 22;
+    private static final int MAX_ROWS = 4;
 
     private Map<String, Long> balances;
     private List<String> rows = new ArrayList<>();
@@ -35,27 +33,17 @@ public class BankScreen extends Screen {
     private TextFieldWidget amountField;
     private TextFieldWidget targetField;
 
-    private int x;
-    private int y;
-
     public BankScreen(Map<String, Long> balances) {
-        super(Text.literal("Banco"));
+        super(Text.literal("Banco"), BG_W, BG_H);
         this.balances = balances;
     }
 
-    private Identifier background() {
-        try {
-            return Identifier.of(ModConfig.get().bankGuiTexture);
-        } catch (Exception e) {
-            return Identifier.of("realeconomy", "textures/gui/bank.png");
-        }
+    private int listTop() {
+        return contentTop();
     }
 
     @Override
-    protected void init() {
-        this.x = (this.width - BG_W) / 2;
-        this.y = (this.height - BG_H) / 2;
-
+    protected void initContent() {
         // Filas: unión de monedas con saldo y monedas que el jugador lleva encima.
         Map<String, Integer> coins = coinCounts();
         LinkedHashMap<String, Long> union = new LinkedHashMap<>(balances);
@@ -70,23 +58,23 @@ public class BankScreen extends Screen {
             selected = rows.get(0);
         }
 
-        int fieldsY = y + LIST_TOP + MAX_ROWS * ROW_H + 6;
+        int cl = contentLeft();
+        int fieldsY = listTop() + MAX_ROWS * ROW_H + 6;
 
-        this.amountField = new TextFieldWidget(this.textRenderer, x + 8, fieldsY, 60, 16, Text.literal("Cantidad"));
+        this.amountField = new TextFieldWidget(this.textRenderer, cl, fieldsY, 70, 16, Text.literal("Cantidad"));
         this.amountField.setPlaceholder(Text.literal("cantidad"));
         this.addDrawableChild(this.amountField);
 
-        this.targetField = new TextFieldWidget(this.textRenderer, x + 74, fieldsY, 80, 16, Text.literal("Jugador"));
+        this.targetField = new TextFieldWidget(this.textRenderer, cl + 78, fieldsY, contentWidth() - 78, 16, Text.literal("Jugador"));
         this.targetField.setPlaceholder(Text.literal("jugador"));
         this.addDrawableChild(this.targetField);
 
         int btnY = fieldsY + 22;
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Ingresar"), b -> action(BankActionPayload.DEPOSIT))
-                .dimensions(x + 8, btnY, 62, 18).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Retirar"), b -> action(BankActionPayload.WITHDRAW))
-                .dimensions(x + 73, btnY, 62, 18).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Transferir"), b -> action(BankActionPayload.TRANSFER))
-                .dimensions(x + 138, btnY, 64, 18).build());
+        int gap = 6;
+        int bw = (contentWidth() - gap * 2) / 3;
+        this.addDrawableChild(ThemedButton.of(cl, btnY, bw, 18, Text.literal("Ingresar"), b -> action(BankActionPayload.DEPOSIT)));
+        this.addDrawableChild(ThemedButton.of(cl + bw + gap, btnY, bw, 18, Text.literal("Retirar"), b -> action(BankActionPayload.WITHDRAW)));
+        this.addDrawableChild(ThemedButton.of(cl + (bw + gap) * 2, btnY, bw, 18, Text.literal("Transferir"), b -> action(BankActionPayload.TRANSFER)));
     }
 
     private void action(int type) {
@@ -124,17 +112,16 @@ public class BankScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        this.renderBackground(ctx, mouseX, mouseY, delta);
-        ctx.drawTexture(background(), x, y, BG_W, BG_H, 0.0F, 0.0F, BG_W, BG_H, 256, 256);
-        ctx.drawText(this.textRenderer, Text.literal("Banco"), x + 8, y + 10, 0x404040, false);
-
+    protected void renderContent(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        int cl = contentLeft();
         Map<String, Integer> coins = coinCounts();
+
         for (int i = 0; i < rows.size(); i++) {
             String id = rows.get(i);
-            int rowY = y + LIST_TOP + i * ROW_H;
+            int rowY = listTop() + i * ROW_H;
+            Theme.slot(ctx, cl, rowY, contentWidth(), ROW_H - 3);
             if (id.equals(selected)) {
-                ctx.fill(x + 8, rowY - 2, x + BG_W - 9, rowY + ROW_H - 4, 0x804CA0FF);
+                ctx.fill(cl + 2, rowY + 2, cl + contentWidth() - 2, rowY + ROW_H - 5, Theme.ROW_SELECTED);
             }
             CurrencyEntry entry = ClientCurrencyStore.getEntry(id);
             String name = entry != null ? entry.name() : id;
@@ -142,36 +129,29 @@ public class BankScreen extends Screen {
             if (color == null) {
                 color = Formatting.GOLD;
             }
-            ctx.drawTexture(ClientCurrencyStore.getTexture(id), x + 10, rowY, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
-            ctx.drawText(this.textRenderer, Text.literal(name).formatted(color), x + 30, rowY, 0xFFFFFF, false);
+            ctx.drawTexture(ClientCurrencyStore.getTexture(id), cl + 3, rowY + 2, 15, 15, 0.0F, 0.0F, 64, 64, 64, 64);
+            text(ctx, Text.literal(name).formatted(color), cl + 23, rowY + 2, Theme.TEXT);
             long bal = balances.getOrDefault(id, 0L);
             int inv = coins.getOrDefault(id, 0);
-            ctx.drawText(this.textRenderer, Text.literal("Saldo: " + bal + "   Monedas: " + inv),
-                    x + 30, rowY + 10, 0x303030, false);
+            text(ctx, "Saldo: " + bal + "   Monedas: " + inv, cl + 23, rowY + 11, Theme.TEXT_DIM);
         }
 
         if (rows.isEmpty()) {
-            ctx.drawText(this.textRenderer, Text.literal("No tienes saldo ni monedas."), x + 12, y + LIST_TOP + 4, 0x707070, false);
+            text(ctx, "No tienes saldo ni monedas.", cl + 2, listTop() + 6, Theme.TEXT_DIM);
         }
-
-        super.render(ctx, mouseX, mouseY, delta);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        int cl = contentLeft();
         for (int i = 0; i < rows.size(); i++) {
-            int rowY = y + LIST_TOP + i * ROW_H;
-            if (mx >= x + 8 && mx <= x + BG_W - 9 && my >= rowY - 2 && my <= rowY + ROW_H - 4) {
+            int rowY = listTop() + i * ROW_H;
+            if (mx >= cl && mx <= cl + contentWidth() && my >= rowY && my <= rowY + ROW_H - 3) {
                 selected = rows.get(i);
                 return true;
             }
         }
         return super.mouseClicked(mx, my, button);
-    }
-
-    @Override
-    public boolean shouldPause() {
-        return false;
     }
 
     public void setBalances(Map<String, Long> balances) {

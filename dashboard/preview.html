@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RealEconomy — Previsualización de interfaces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --title:#e7c878;      /* título dorado */
+    --text:#f2e6cc;       /* texto crema */
+    --dim:#bda67e;        /* texto atenuado */
+    --warn:#e08a54;       /* bajo (oferta/demanda) */
+    --ok:#8bd17a;         /* alto */
+    --btn-text:#2a1d0e;   /* texto de botón (marrón oscuro) */
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    /* fondo tipo "menú de aventura": bosque oscuro desenfocado */
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #2a3a24 0%, #121a12 55%, #0a0d0a 100%);
+    color:var(--text);
+    font-family:"Jersey 10","VT323",monospace;
+    min-height:100vh;
+  }
+  .pagehead{
+    text-align:center;padding:26px 16px 6px;
+  }
+  .pagehead h1{
+    margin:0;font-size:40px;color:var(--title);letter-spacing:1px;
+    text-shadow:2px 2px 0 #000;
+  }
+  .pagehead p{margin:6px 0 0;color:var(--dim);font-size:22px}
+  .toolbar{
+    display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+    padding:8px 16px 18px;
+  }
+  .toolbar button{
+    font-family:inherit;font-size:19px;cursor:pointer;
+    color:var(--btn-text);background:transparent;border:0;
+    border-style:solid;border-width:16px;
+    border-image:url(tex/button.png) 6 fill stretch;
+    image-rendering:pixelated;padding:0 14px;min-height:40px;
+  }
+  .toolbar button.active{filter:drop-shadow(0 0 6px #ffe9a8)}
+  .toolbar button:hover{filter:brightness(1.12)}
+
+  .stage{
+    display:flex;flex-wrap:wrap;gap:40px;justify-content:center;
+    align-items:flex-start;padding:10px 20px 60px;
+  }
+
+  /* ---- Nine-slice del panel (madera + panel marrón) ---- */
+  .screen{
+    position:relative;
+    border-style:solid;border-width:42px;      /* 14px * 3 */
+    border-image:url(tex/panel.png) 14 fill stretch;
+    image-rendering:pixelated;
+    width:420px;min-height:260px;padding:4px 14px 14px;
+    filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));
+  }
+  .screen.wide{width:470px}
+  .screen .title{
+    text-align:center;color:var(--title);font-size:28px;
+    text-shadow:2px 2px 0 #000;margin:2px 0 2px;
+  }
+  .screen .divider{
+    height:3px;margin:0 6px 10px;
+    background:linear-gradient(90deg,transparent,#cba14b,transparent);
+  }
+  .screen .body{font-size:20px;line-height:1.35}
+  .muted{color:var(--dim)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)}
+
+  /* fila hundida (slot) */
+  .slot{
+    border-style:solid;border-width:12px;        /* 6px * 2 */
+    border-image:url(tex/slot.png) 6 fill stretch;
+    image-rendering:pixelated;
+    display:flex;align-items:center;gap:10px;
+    padding:2px 8px;margin:6px 0;min-height:40px;
+  }
+  .slot .coin, .slot .ico{
+    width:26px;height:26px;image-rendering:pixelated;flex:0 0 auto;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .slot .ico{border-radius:4px;font-size:18px}
+  .slot .grow{flex:1 1 auto}
+  .slot .right{margin-left:auto}
+
+  /* botón del tema */
+  .btn{
+    font-family:inherit;color:var(--btn-text);
+    border-style:solid;border-width:16px;
+    border-image:url(tex/button.png) 6 fill stretch;
+    image-rendering:pixelated;background:transparent;
+    font-size:18px;cursor:pointer;min-height:40px;padding:0 10px;
+  }
+  .btn.sm{font-size:16px;min-height:34px;border-width:14px}
+  .btn:hover{filter:brightness(1.12) drop-shadow(0 0 5px #ffe9a8)}
+  .btn.off{filter:brightness(.6) grayscale(.3);cursor:default}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .field{
+    flex:1 1 auto;background:#1c140c;border:2px solid #000;
+    color:var(--text);font-family:inherit;font-size:18px;
+    padding:4px 8px;min-height:34px;
+  }
+
+  /* slider de impuestos */
+  .slider{position:relative;height:30px;margin:10px 0 4px}
+  .slider .track{
+    position:absolute;inset:8px 0;background:#1c140c;border:2px solid #000;border-radius:3px;
+  }
+  .slider .fill{position:absolute;left:0;top:10px;bottom:10px;width:35%;
+    background:linear-gradient(#e7c878,#cba14b);border:2px solid #000;border-radius:3px}
+  .slider .knob{position:absolute;left:35%;top:2px;width:14px;height:26px;
+    background:linear-gradient(#f2e6cc,#cba14b);border:2px solid #000;border-radius:3px;transform:translateX(-50%)}
+
+  .hidden{display:none}
+  .note{max-width:900px;margin:0 auto;padding:0 20px 50px;color:var(--dim);font-size:18px;text-align:center}
+  .note code{background:#1c140c;color:#e7c878;padding:1px 7px;border-radius:4px;font-size:16px}
+  a.back{color:#8bd17a;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>⚜ RealEconomy — Interfaces</h1>
+  <p>Previsualización con las texturas reales del tema (madera · panel marrón · botón crema/dorado)</p>
+</div>
+
+<div class="toolbar">
+  <button data-s="banco" class="active">Banco</button>
+  <button data-s="ayto">Ayuntamiento</button>
+  <button data-s="tienda">Tienda</button>
+  <button data-s="mercado">Mercado</button>
+  <button data-s="comprador">Comprador</button>
+  <button data-s="todo">Ver todo</button>
+</div>
+
+<div class="stage" id="stage">
+
+  <!-- ============ BANCO ============ -->
+  <div class="screen" data-screen="banco">
+    <div class="title">Banco</div>
+    <div class="divider"></div>
+    <div class="body">
+      <div class="muted">Tus saldos:</div>
+
+      <div class="slot">
+        <img class="coin" src="tex/coin.png" alt="">
+        <span style="color:#ff5555">España [ESP]</span>
+        <span class="right">500</span>
+      </div>
+      <div class="slot">
+        <img class="coin" src="tex/coin.png" alt="">
+        <span style="color:#55ffff">Francia [FRA]</span>
+        <span class="right">120</span>
+      </div>
+
+      <div class="muted" style="margin-top:8px">En inventario: 200 monedas</div>
+      <div class="row">
+        <input class="field" value="100" aria-label="cantidad">
+        <input class="field" value="Jugador2" aria-label="jugador">
+      </div>
+      <div class="row">
+        <button class="btn sm">Ingresar</button>
+        <button class="btn sm">Retirar</button>
+        <button class="btn sm">Transferir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ AYUNTAMIENTO ============ -->
+  <div class="screen" data-screen="ayto">
+    <div class="title">Ayuntamiento</div>
+    <div class="divider"></div>
+    <div class="body">
+      <div>Licencias disponibles: <span class="ok">3</span></div>
+      <div class="muted">Precio: 50 <span style="color:#ff5555">ESP</span></div>
+      <button class="btn" style="margin-top:8px">Comprar licencia</button>
+
+      <div style="margin-top:14px">Circulación: 1.000 · Valor: <span class="ok">0,50</span> esm.</div>
+      <div class="muted">Imprimir dinero (solo líder):</div>
+      <div class="row">
+        <input class="field" value="1000" aria-label="cantidad">
+        <button class="btn sm">Imprimir</button>
+      </div>
+
+      <div style="margin-top:12px">Impuestos: <span class="title">35%</span></div>
+      <div class="slider"><div class="track"></div><div class="fill"></div><div class="knob"></div></div>
+    </div>
+  </div>
+
+  <!-- ============ TIENDA ============ -->
+  <div class="screen wide" data-screen="tienda">
+    <div class="title">Tienda de Caiver</div>
+    <div class="divider"></div>
+    <div class="body">
+      <div class="slot">
+        <span class="ico" style="background:#6b4f2a">🪵</span>
+        <div class="grow">
+          <div>Vende: Roble</div>
+          <div class="muted">10 <span style="color:#ff5555">ESP</span> &nbsp; (stock 64)</div>
+        </div>
+        <button class="btn sm">Comprar</button>
+      </div>
+      <div class="slot">
+        <span class="ico" style="background:#3a7d44">🌾</span>
+        <div class="grow">
+          <div>Compra: Trigo</div>
+          <div class="muted">8 <span style="color:#ff5555">ESP</span> &nbsp; (quedan 32)</div>
+        </div>
+        <button class="btn sm">Vender</button>
+      </div>
+      <div class="slot">
+        <span class="ico" style="background:#5a5a5a">⛏</span>
+        <div class="grow">
+          <div>Vende: Hierro</div>
+          <div class="muted">25 <span style="color:#ff5555">ESP</span> &nbsp; (stock 12)</div>
+        </div>
+        <button class="btn sm">Comprar</button>
+      </div>
+      <div class="muted" style="margin-top:6px"><i>Mantén Shift para x64</i></div>
+    </div>
+  </div>
+
+  <!-- ============ MERCADO ============ -->
+  <div class="screen wide" data-screen="mercado">
+    <div class="title">Mercado [ESP]</div>
+    <div class="divider"></div>
+    <div class="body">
+      <div class="slot">
+        <span class="ico" style="background:#2f8f4e">💚</span>
+        <div class="grow">
+          <div>Compra: Esmeralda</div>
+          <div class="muted">5 <span style="color:#ff5555">ESP</span> &nbsp; (puede 999)</div>
+        </div>
+        <button class="btn sm">Vender</button>
+      </div>
+      <div class="slot">
+        <span class="ico" style="background:#2f8f4e">💚</span>
+        <div class="grow">
+          <div>Vende: Esmeralda</div>
+          <div class="muted">5 <span style="color:#ff5555">ESP</span> &nbsp; (stock 240)</div>
+        </div>
+        <button class="btn sm">Comprar</button>
+      </div>
+      <div class="slot">
+        <span class="ico" style="background:#6b4f2a">🪵</span>
+        <div class="grow">
+          <div>Vende: Roble</div>
+          <div class="muted">3 <span style="color:#ff5555">ESP</span> &nbsp; (stock 128)</div>
+        </div>
+        <button class="btn sm">Comprar</button>
+      </div>
+      <div class="muted" style="margin-top:6px"><i>Mantén Shift para x64</i></div>
+    </div>
+  </div>
+
+  <!-- ============ COMPRADOR ============ -->
+  <div class="screen" data-screen="comprador">
+    <div class="title">Comprador [ESP]</div>
+    <div class="divider"></div>
+    <div class="body">
+      <div class="muted">Precio por categoría (España):</div>
+      <div class="slot"><span class="grow">Madera: 2 /ud</span><span class="right ok">100%</span></div>
+      <div class="slot"><span class="grow">Minerales: 6 /ud</span><span class="right warn">38%</span></div>
+      <div class="slot"><span class="grow">Comida: 1 /ud</span><span class="right muted">64%</span></div>
+      <div class="slot"><span class="grow">Cultivos: 1 /ud</span><span class="right ok">92%</span></div>
+      <button class="btn" style="margin-top:10px;width:100%">Vender inventario</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  Estas son maquetas con las <b>texturas reales</b> del tema (nine-slice), para ver el estilo sin abrir Minecraft.
+  En el juego se ven con la fuente de Minecraft y los iconos de item reales.
+  Para verlas de verdad: <code>./gradlew runClient</code> → <code>/ecoadmin debug banco|ayuntamiento|tienda|mercado|comprador</code>.
+  <br><br><a class="back" href="/">← volver al panel de progreso</a>
+</div>
+
+<script>
+  const btns = document.querySelectorAll('.toolbar button');
+  const screens = document.querySelectorAll('[data-screen]');
+  function show(which){
+    btns.forEach(b=>b.classList.toggle('active', b.dataset.s===which));
+    screens.forEach(s=>{
+      s.classList.toggle('hidden', which!=='todo' && s.dataset.screen!==which);
+    });
+  }
+  btns.forEach(b=>b.addEventListener('click', ()=>show(b.dataset.s)));
+  show('banco');
+</script>
+</body>
+</html>

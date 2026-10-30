@@ -29,6 +29,27 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 - **Comandos:** un archivo por subsistema en `com.realeconomy.command`, registrados vía `CommandRegistrationCallback`.
 - **Config:** (pendiente, parte transversal) archivo en `config/realeconomy.json`.
 
+## Interfaces: tema visual único y `/ecoadmin debug`
+
+Todas las pantallas del cliente (banco, ayuntamiento, tiendas, mercados, compradores) comparten un **tema único** con estética de **menú de aventura**: marco de madera oscura, panel marrón, botones crema/dorado con borde negro, texto con la fuente de Minecraft y detalles dorados. Las texturas son **originales** (generadas de forma procedural, no copiadas de otros mods).
+
+Código del tema en `com.realeconomy.client.ui`:
+- `Theme` — paleta (dorado/crema/marrón), identificadores de textura (resueltos desde la config, con fallback) y el **nine-slice** (`panel`, `button`, `slot`) que escala las texturas sin deformarse.
+- `ThemedScreen` — base de todas las pantallas: centra el panel de madera, pinta la cabecera dorada con el título y ofrece utilidades (`contentLeft/Top/Width`, `text`, `centered`). Las subclases implementan `initContent()` (widgets) y `renderContent()` (dibujo).
+- `ThemedButton` — botón crema/dorado con borde negro, resalte dorado al pasar el ratón y aspecto atenuado al estar deshabilitado.
+- `ThemedSlider` — deslizador (barra de impuestos) con carril hundido, relleno dorado y tirador del tema.
+
+**Texturas** (en `assets/realeconomy/textures/gui/theme/`, nine-slice):
+- `panel.png` (72×72, borde 14) — marco de madera + anillo dorado + panel marrón.
+- `button.png` (32×20, borde 6) — botón con degradado crema→dorado y borde negro.
+- `slot.png` (26×26, borde 6) — casilla hundida para las filas de los listados.
+
+**Sustituibles por resource pack o config:** basta con sobrescribir esos identificadores en un resource pack, o cambiar `themePanelTexture` / `themeButtonTexture` / `themeSlotTexture` en `config/realeconomy.json` (+ `/ecoadmin reload`). Las texturas se regeneran con el generador `GenTheme` (no incluido en el jar; es una utilidad de desarrollo).
+
+**`/ecoadmin debug <interfaz>` (op nivel 2):** abre cualquier interfaz **sin necesidad de NPC** ni de montar la economía, para probar las pantallas en local. `<interfaz>`: `banco`, `ayuntamiento`, `tienda`, `mercado`, `comprador`. El banco y el ayuntamiento muestran tus datos reales; tienda/mercado/comprador muestran ofertas/categorías de ejemplo (usan la moneda de tu país si tienes, si no un marcador `demo`).
+
+> **Nota sobre "no se veían las interfaces":** se auditó todo el pipeline cliente↔servidor (registro de payloads S2C/C2S, receptores de cliente, apertura por clic derecho en NPC) y es correcto; el mod carga sin errores en `runClient`. Para que una GUI no aparezca hacían falta en la práctica: ser op, tener el mundo con trucos, haber creado el NPC y cumplir cercanía/moneda — o estar probando con un cliente **sin el mod** conectado a `runServer`. Ahora `/ecoadmin debug` abre cualquier pantalla al instante, y el clic derecho en NPC **registra en el log** cualquier error en vez de fallar en silencio.
+
 ## Estado por partes
 
 1. **Países** (antes "Grupos") ✅ — siglas, color, líder, miembros, lista de jugadores con `[SIGLAS]` en color. **Partidos políticos** dentro de cada país (se fundan en el ayuntamiento pagando a la cuenta del país).
@@ -297,6 +318,8 @@ Comandos de administrador (`/ecoadmin`, requiere op nivel 2):
 | `/ecoadmin saldo ver <jugador>` | muestra los saldos digitales |
 | `/ecoadmin saldo set <jugador> <siglas> <cantidad>` | fija el saldo |
 | `/ecoadmin saldo add <jugador> <siglas> <cantidad>` | suma/resta al saldo |
+| `/ecoadmin reload` | recarga `config/realeconomy.json` sin reiniciar |
+| `/ecoadmin debug <interfaz>` | abre una GUI sin NPC: `banco`, `ayuntamiento`, `tienda`, `mercado`, `comprador` |
 
 > Nota: las monedas físicas (item) y el saldo digital (banco) son cosas distintas. El banco (parte 3) convertirá entre ambos (ingresar/retirar).
 
