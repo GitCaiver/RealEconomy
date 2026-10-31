@@ -6,6 +6,7 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.util.Formatting;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +24,8 @@ public class Group {
     private UUID leader;
     /** uuid -> último nombre conocido (para mostrar miembros desconectados). */
     private final Map<UUID, String> members = new LinkedHashMap<>();
+    /** Ministros: miembros designados por el líder que forman el gobierno junto a él. */
+    private final Set<UUID> ministers = new LinkedHashSet<>();
 
     public Group(String id, String name, String tag, Formatting color, UUID leader, String leaderName) {
         this.id = id;
@@ -75,10 +78,38 @@ public class Group {
 
     public void setLeader(UUID leader) {
         this.leader = leader;
+        this.ministers.remove(leader); // el líder no se cuenta como ministro
     }
 
     public boolean isLeader(UUID uuid) {
         return leader.equals(uuid);
+    }
+
+    // ---- Gobierno (líder + ministros) ----
+
+    /** true si el jugador forma parte del gobierno del país (líder o ministro). */
+    public boolean isGovernment(UUID uuid) {
+        return isLeader(uuid) || ministers.contains(uuid);
+    }
+
+    public boolean isMinister(UUID uuid) {
+        return ministers.contains(uuid);
+    }
+
+    public Set<UUID> getMinisters() {
+        return ministers;
+    }
+
+    /** Designa ministro a un miembro (no al líder). Devuelve false si no procede. */
+    public boolean addMinister(UUID uuid) {
+        if (uuid == null || uuid.equals(leader) || !members.containsKey(uuid)) {
+            return false;
+        }
+        return ministers.add(uuid);
+    }
+
+    public boolean removeMinister(UUID uuid) {
+        return ministers.remove(uuid);
     }
 
     public boolean isMember(UUID uuid) {
@@ -119,6 +150,7 @@ public class Group {
 
     public void removeMember(UUID uuid) {
         members.remove(uuid);
+        ministers.remove(uuid); // al salir del país deja de ser ministro
     }
 
     public int size() {
@@ -142,6 +174,13 @@ public class Group {
             memberList.add(mc);
         }
         c.put("members", memberList);
+        NbtList ministerList = new NbtList();
+        for (UUID m : ministers) {
+            NbtCompound mc = new NbtCompound();
+            mc.putUuid("uuid", m);
+            ministerList.add(mc);
+        }
+        c.put("ministers", ministerList);
         return c;
     }
 
@@ -156,6 +195,13 @@ public class Group {
         for (int i = 0; i < memberList.size(); i++) {
             NbtCompound mc = memberList.getCompound(i);
             g.members.put(mc.getUuid("uuid"), mc.getString("name"));
+        }
+        NbtList ministerList = c.getList("ministers", NbtElement.COMPOUND_TYPE);
+        for (int i = 0; i < ministerList.size(); i++) {
+            UUID m = ministerList.getCompound(i).getUuid("uuid");
+            if (g.members.containsKey(m) && !m.equals(g.leader)) {
+                g.ministers.add(m);
+            }
         }
         return g;
     }

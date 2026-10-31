@@ -2,6 +2,7 @@ package com.realeconomy.client.ui;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 
 /**
@@ -47,17 +48,38 @@ public abstract class ThemedScreen extends Screen {
         renderContent(ctx, mouseX, mouseY, delta);
         // Dibuja los widgets (botones, campos) por encima del contenido.
         super.render(ctx, mouseX, mouseY, delta);
+        // Los tooltips van en último lugar, por encima de todo.
+        renderTooltips(ctx, mouseX, mouseY);
     }
 
-    /** Cabecera: título centrado en dorado con una línea divisoria dorada. */
+    /**
+     * Pinta tooltips flotantes (por encima de widgets). Por defecto no hace nada;
+     * las subclases con iconos de items lo usan junto a {@link #itemTooltip}.
+     */
+    protected void renderTooltips(DrawContext ctx, int mouseX, int mouseY) {
+    }
+
+    /**
+     * Si el ratón está sobre el icono 16×16 dibujado en {@code (iconX, iconY)}, pinta
+     * el tooltip real del item (nombre, encantamientos, durabilidad...). El icono en sí
+     * se dibuja con {@code ctx.drawItem(stack, ...)}, que ya incluye el brillo de encantamiento.
+     */
+    protected void itemTooltip(DrawContext ctx, ItemStack stack, int iconX, int iconY, int mouseX, int mouseY) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        if (mouseX >= iconX && mouseX < iconX + 16 && mouseY >= iconY && mouseY < iconY + 16) {
+            ctx.drawItemTooltip(this.textRenderer, stack, mouseX, mouseY);
+        }
+    }
+
+    /** Cabecera: título centrado en dorado con un separador Art Déco. */
     protected void drawHeader(DrawContext ctx) {
         int cx = left + bgW / 2;
         ctx.drawCenteredTextWithShadow(this.textRenderer, getTitle(), cx, top + 8, Theme.TITLE);
         int ly = top + Theme.HEADER - 2;
         int lx0 = left + Theme.INSET;
-        int lx1 = left + bgW - Theme.INSET;
-        ctx.fill(lx0, ly, lx1, ly + 1, 0xFF8A6B2E);      // sombra
-        ctx.fill(lx0, ly - 1, lx1, ly, 0xAACBA14B);      // línea dorada
+        Theme.separator(ctx, lx0, ly, bgW - Theme.INSET * 2);
     }
 
     // ---- Utilidades de dibujo para las subclases ----

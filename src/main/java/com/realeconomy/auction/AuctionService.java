@@ -98,6 +98,12 @@ public final class AuctionService {
             msg(player, "La duración mínima de una subasta es " + TimeUtil.format(minDur) + ".", Formatting.RED);
             return;
         }
+        com.realeconomy.group.Group auctionCountry = com.realeconomy.group.GroupManager.get(server).getByPlayer(player.getUuid());
+        if (auctionCountry != null && !com.realeconomy.license.CustomLicenseManager.get(server)
+                .permits(auctionCountry.getId(), player.getUuid(), com.realeconomy.license.LicensePermission.SUBASTA)) {
+            msg(player, "Tu país exige una licencia para colocar subastas. Cómprala con /licencia comprar <nombre>.", Formatting.RED);
+            return;
+        }
         if (!LicenseManager.get(server).consumeAuction(player.getUuid())) {
             msg(player, "Necesitas una licencia de subasta. Cómprala en el ayuntamiento (/subasta licencia).", Formatting.RED);
             return;
@@ -203,11 +209,15 @@ public final class AuctionService {
         BalanceManager bm = BalanceManager.get(server);
         if (a.hasBids()) {
             long bid = a.getCurrentBid();
-            long commission = bid * Math.max(0, ModConfig.get().auctionCommissionPercent) / 100L;
+            // Comisión de subasta (parte 4): % efectivo del país del vendedor (política o config).
+            Group sellerCountry = GroupManager.get(server).getByPlayer(a.getSeller());
+            int pct = sellerCountry != null
+                    ? FinanceManager.get(server).effectiveAuctionPercent(sellerCountry.getId())
+                    : Math.max(0, ModConfig.get().auctionCommissionPercent);
+            long commission = bid * Math.max(0, pct) / 100L;
             long toSeller = bid - commission;
             bm.add(a.getSeller(), a.getCurrencyId(), toSeller);
             if (commission > 0) {
-                Group sellerCountry = GroupManager.get(server).getByPlayer(a.getSeller());
                 if (sellerCountry != null) {
                     bm.add(FinanceManager.accountUuid(sellerCountry), a.getCurrencyId(), commission);
                 } else {

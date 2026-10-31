@@ -143,9 +143,16 @@ public final class BuyerActions {
             return new long[]{0, 0};
         }
         removeItem(inv, item, units);
-        bm.add(player.getUuid(), currencyId, pay);
+        // Impuesto de venta a NPC de mercado (parte 4): el país del vendedor retiene un %.
+        var sellerCountry = GroupManager.get(server).getByPlayer(player.getUuid());
+        long tax = 0L;
+        if (sellerCountry != null) {
+            int pct = FinanceManager.get(server).getPolicy(sellerCountry.getId()).marketSalePercent;
+            tax = FinanceManager.get(server).applyTransactionTax(server, sellerCountry, pct, pay, currencyId);
+        }
+        bm.add(player.getUuid(), currencyId, pay - tax);
         mgr.recordSale(category, units);
-        return new long[]{units, pay};
+        return new long[]{units, pay - tax};
     }
 
     // ---- Inventario ----

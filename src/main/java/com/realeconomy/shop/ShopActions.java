@@ -110,9 +110,18 @@ public final class ShopActions {
         int removed = removeFromStorage(shop, template, possible);
         long total = (long) removed * offer.getPrice();
         bm.subtract(player.getUuid(), offer.getCurrencyId(), total);
-        bm.add(shop.getOwner(), offer.getCurrencyId(), total);
+        // Impuesto de venta de tienda (parte 4): el país del dueño retiene un % de la venta.
+        var ownerCountry = com.realeconomy.group.GroupManager.get(server).getByPlayer(shop.getOwner());
+        long tax = 0L;
+        if (ownerCountry != null) {
+            int pct = com.realeconomy.finance.FinanceManager.get(server).getPolicy(ownerCountry.getId()).shopSalePercent;
+            tax = com.realeconomy.finance.FinanceManager.get(server)
+                    .applyTransactionTax(server, ownerCountry, pct, total, offer.getCurrencyId());
+        }
+        bm.add(shop.getOwner(), offer.getCurrencyId(), total - tax);
         giveStack(player, template, removed);
-        player.sendMessage(Text.literal("Comprado x" + removed + " por " + total + ".").formatted(Formatting.GREEN));
+        player.sendMessage(Text.literal("Comprado x" + removed + " por " + total
+                + (tax > 0 ? " (impuesto " + tax + " al país del vendedor)" : "") + ".").formatted(Formatting.GREEN));
 
         if (storageCount(shop, template) <= 0) {
             shop.getOffers().remove(offer);

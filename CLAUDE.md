@@ -31,20 +31,23 @@ El `.jar` final queda en `build/libs/realeconomy-<version>.jar` (ignora el `-sou
 
 ## Interfaces: tema visual único y `/ecoadmin debug`
 
-Todas las pantallas del cliente (banco, ayuntamiento, tiendas, mercados, compradores) comparten un **tema único** con estética de **menú de aventura**: marco de madera oscura, panel marrón, botones crema/dorado con borde negro, texto con la fuente de Minecraft y detalles dorados. Las texturas son **originales** (generadas de forma procedural, no copiadas de otros mods).
+Todas las pantallas del cliente (banco, ayuntamiento, tiendas, mercados, compradores) comparten un **tema único** con estética **Art Déco + steampunk elegante + neotecnología + opulencia burguesa**: **mármol negro**, **oro y latón**, cobre pulido, líneas geométricas simétricas, **marcos escalonados y abanicos Art Déco** en las esquinas, **remaches** de latón y un filo de **cian/turquesa neón** como acento tecnológico; bordes biselados; texto con la fuente de Minecraft (misma legibilidad que antes). Las texturas son **originales** (generadas de forma procedural, no copiadas de otros mods).
 
 Código del tema en `com.realeconomy.client.ui`:
-- `Theme` — paleta (dorado/crema/marrón), identificadores de textura (resueltos desde la config, con fallback) y el **nine-slice** (`panel`, `button`, `slot`) que escala las texturas sin deformarse.
-- `ThemedScreen` — base de todas las pantallas: centra el panel de madera, pinta la cabecera dorada con el título y ofrece utilidades (`contentLeft/Top/Width`, `text`, `centered`). Las subclases implementan `initContent()` (widgets) y `renderContent()` (dibujo).
-- `ThemedButton` — botón crema/dorado con borde negro, resalte dorado al pasar el ratón y aspecto atenuado al estar deshabilitado.
-- `ThemedSlider` — deslizador (barra de impuestos) con carril hundido, relleno dorado y tirador del tema.
+- `Theme` — paleta (oro/latón/mármol + acento `ACCENT` turquesa), identificadores de textura (resueltos desde la config, con fallback) y el **nine-slice** (`panel`, `button`, `slot`, `field`, `bar`) que escala las texturas sin deformarse; además `barFilled(...)` (barra con relleno proporcional, dorado o turquesa) y `separator(...)` (divisor Art Déco con rombo de latón).
+- `ThemedScreen` — base de todas las pantallas: centra el panel de mármol, pinta la cabecera dorada con el título y un separador, y ofrece utilidades (`contentLeft/Top/Width`, `text`, `centered`). Las subclases implementan `initContent()` (widgets) y `renderContent()` (dibujo).
+- `ThemedButton` — botón oscuro de latón con bisel dorado, texto claro con sombra, resalte turquesa al pasar el ratón y aspecto atenuado al estar deshabilitado.
+- `ThemedSlider` — deslizador (barra de impuestos) con carril hundido (`bar`), relleno dorado y tirador del tema.
+- `ThemedTextField` — campo de texto con fondo de mármol oscuro, marco de latón y filo turquesa al enfocar (reutilizable por todas las pantallas).
 
 **Texturas** (en `assets/realeconomy/textures/gui/theme/`, nine-slice):
-- `panel.png` (72×72, borde 14) — marco de madera + anillo dorado + panel marrón.
-- `button.png` (32×20, borde 6) — botón con degradado crema→dorado y borde negro.
-- `slot.png` (26×26, borde 6) — casilla hundida para las filas de los listados.
+- `panel.png` (72×72, borde 14) — mármol negro + marco escalonado oro/latón + filo turquesa + abanicos y remaches.
+- `button.png` (32×20, borde 6) — botón de latón oscuro con bisel dorado.
+- `slot.png` (26×26, borde 6) — casilla hundida de mármol con bisel dorado (filas de los listados).
+- `field.png` (24×24, borde 6) — campo de texto: mármol muy oscuro, marco de latón, filo turquesa.
+- `bar.png` (24×12, borde 6) — carril hundido para sliders y barras de tendencia.
 
-**Sustituibles por resource pack o config:** basta con sobrescribir esos identificadores en un resource pack, o cambiar `themePanelTexture` / `themeButtonTexture` / `themeSlotTexture` en `config/realeconomy.json` (+ `/ecoadmin reload`). Las texturas se regeneran con el generador `GenTheme` (no incluido en el jar; es una utilidad de desarrollo).
+**Sustituibles por resource pack o config:** basta con sobrescribir esos identificadores en un resource pack, o cambiar `themePanelTexture` / `themeButtonTexture` / `themeSlotTexture` / `themeFieldTexture` / `themeBarTexture` en `config/realeconomy.json` (+ `/ecoadmin reload`). Las texturas se regeneran con el generador `tools/GenTheme.java` (no incluido en el jar; `javac -d <tmp> tools/GenTheme.java && java -cp <tmp> GenTheme <carpeta>`).
 
 **`/ecoadmin debug <interfaz>` (op nivel 2):** abre cualquier interfaz **sin necesidad de NPC** ni de montar la economía, para probar las pantallas en local. `<interfaz>`: `banco`, `ayuntamiento`, `tienda`, `mercado`, `comprador`. El banco y el ayuntamiento muestran tus datos reales; tienda/mercado/comprador muestran ofertas/categorías de ejemplo (usan la moneda de tu país si tienes, si no un marcador `demo`).
 
@@ -72,6 +75,179 @@ Código del tema en `com.realeconomy.client.ui`:
    - (El "banquero y préstamos" original ya está hecho como parte 9.)
 
 **Extra (2ª tanda):** barra de impuestos general del país **0–100 %** (slider en el ayuntamiento + `/gobierno impuestos`), que cobra ese % del saldo de cada miembro a la cuenta del país de forma periódica.
+
+### Tercera tanda (cambios y añadidos en curso)
+
+1. **Estética nueva de TODAS las interfaces** ✅ — tema único Art Déco + steampunk (mármol negro, oro/latón, acento turquesa neón); texturas originales `panel`/`button`/`slot`/`field`/`bar`; `ThemedTextField` y separadores Art Déco. Ver *Interfaces: tema visual único*.
+2. **Gobierno y permisos** ✅ — ministros designados por el líder; solo el gobierno (líder+ministros) gestiona el país. Ver *Gobierno y permisos (3ª tanda)*.
+3. **Banco: cambio de moneda y transferencias** ✅ — cambio origen→destino por valor actual con comisión al país; transferencias por GUI y comando. Ver *Banco: cambio de moneda (3ª tanda)*.
+4. **Impuestos por tipo** ✅ — renta/ventatienda/cuotatienda/mercado/transferencia/cambio/subasta, cada uno configurable; panel editable en el ayuntamiento (gobierno). Ver *Impuestos por tipo (3ª tanda)*.
+5. **Licencias personalizadas** ✅ — el gobierno define licencias (nombre, precio, moneda, caducidad, permiso); los jugadores las compran en el ayuntamiento; sin la licencia correcta, la acción se bloquea. Ver *Licencias personalizadas (3ª tanda)*.
+6. **Mercado (NPC): solo vender** ✅ — el mercado solo compra (los jugadores venden); precio por oferta/demanda con tendencia (▲/▼). Ver *Mercado solo-venta (3ª tanda)*.
+7. **Tiendas: icono real del item** ✅ — las ofertas muestran el **icono real** del item de Minecraft con su **brillo de encantamiento**, y un **tooltip** al pasar el ratón (nombre, encantamientos, durabilidad). Ver *Tiendas: icono real del item (3ª tanda)*.
+
+## Impuestos por tipo (3ª tanda, parte 4) — implementada
+
+El impuesto único se sustituye por **varios tipos** que el **gobierno** configura por separado; cada uno se activa/desactiva poniéndolo a 0 (o a -1 = "por defecto de la config" en cambio/subasta). **Todo va a la cuenta del país.**
+
+| Tipo | Qué grava | Dónde se cobra | A qué país |
+|---|---|---|---|
+| **renta** | % del saldo de cada miembro, periódico (`countryTaxPeriod`) | `FinanceManager.tick` (= impuesto general 0-100 ya existente) | propio |
+| **ventatienda** | % de cada venta de una tienda de jugador | `ShopActions.buyFromShop` | país del dueño |
+| **cuotatienda** | cantidad fija por tienda, periódica | `FinanceManager.collectShopFee` | país del dueño |
+| **mercado** | % de lo que cobra un jugador al vender a un NPC comprador/mercado | `BuyerActions.sellItemType` | país del vendedor |
+| **transferencia** | % de cada transferencia bancaria | `BankActions.transfer` / `/banco transferir` | país emisor de la moneda |
+| **cambio** | comisión del cambio de moneda | `BankActions.quote` | país de la moneda destino |
+| **subasta** | comisión al cerrarse una subasta con puja | `AuctionService` | país del vendedor |
+
+- Modelo: `finance.TaxPolicy` (persistente dentro de `FinanceManager`/`GroupFinance`). `cambio` y `subasta` usan `-1 = usar config` (`bankExchangeCommissionPercent` / `auctionCommissionPercent`); `FinanceManager.effectiveExchangePercent/effectiveAuctionPercent` resuelven el valor. `applyTransactionTax(...)` mueve el corte a la cuenta del país.
+- **Panel en el ayuntamiento** (`client.TaxScreen`, abierto con el botón "Impuestos por tipo…", solo gobierno): una fila por tipo con su valor y botones −/+ (−5/−1/+1/+5, y −10/+10 en la cuota). El resto de jugadores lo ve en solo lectura. Payloads `OpenTaxPolicyPayload` (S2C) y `TaxPolicyActionPayload` (C2S); acción `OPEN_TAXES` del ayuntamiento.
+- **Comandos** (`/impuesto`, gobierno): `/impuesto tipos` (ver todos) y `/impuesto tipo <tipo> <valor> [periodo]`. Los impuestos **con nombre** (`/impuesto crear …`) y la **barra general** (= renta) siguen existiendo.
+
+### Cómo probar la parte 4 (3ª tanda)
+
+1. País con moneda y gobierno (partes 1-2). `/impuesto tipos` muestra todos los tipos a 0 / por defecto.
+2. **Panel:** clic derecho en el ayuntamiento como gobierno → botón **Impuestos por tipo…** → ajusta "Venta de tienda" a 10% con +5/+1. Como no-gobierno, el panel es de solo lectura.
+3. **Venta de tienda:** monta una tienda y que otro jugador compre → el dueño recibe el precio menos el 10% (va a `/tesoreria`).
+4. **Transferencia:** `/impuesto tipo transferencia 5` → `/banco transferir Otro ESP 100` → el receptor recibe 95 y 5 van a la cuenta.
+5. **Cambio/subasta:** `/impuesto tipo cambio 10` cambia la comisión del banco; `/impuesto tipo subasta 8` la de subastas. Pon `-1` para volver al valor de la config.
+6. **Cuota de tienda:** `/impuesto tipo cuotatienda 50 1d` → cada día cada dueño paga 50 por tienda a la cuenta.
+7. **Mercado:** `/impuesto tipo mercado 10` → al vender a un NPC comprador, el vendedor recibe un 10% menos (a la cuenta de su país). Reinicia: la política persiste.
+
+## Licencias personalizadas (3ª tanda, parte 5) — implementada
+
+El **gobierno** (líder + ministros) crea **licencias personalizadas** de su país; los jugadores las **compran en el ayuntamiento** (GUI o comando) y, **sin la licencia correcta, la acción se bloquea**. Conviven con las licencias consumibles antiguas de tienda/subasta (`townhall.LicenseManager`): el sistema nuevo es una capa de permisos **definida por cada país**.
+
+Cada licencia tiene: **nombre**, **precio**, **moneda** (siglas de un país con moneda), **duración** (`permanente` o un periodo `30s/10m/2h/1d`) y **un permiso** de la lista:
+
+| Permiso (clave) | Qué habilita | Dónde se aplica |
+|---|---|---|
+| `tienda` | montar una tienda | `/tienda crear` |
+| `subasta` | colocar subastas | `/subasta crear` |
+| `banquero` | conceder préstamos | `/prestamo conceder` |
+| `mercado` | abrir un mercado | `/mercado crear` |
+| `trabajo` | cobrar por trabajar | `jobs.Jobs.payWage` |
+
+- **Regla de aplicación:** una acción solo se bloquea si el país del jugador **ha definido al menos una licencia** para ese permiso. Si no define ninguna, la acción sigue libre (compatibilidad con el comportamiento anterior). Un jugador sin país nunca queda bloqueado.
+- **Modelo:** `license.LicensePermission` (enum), `license.License` (definición: id, país, nombre, precio, moneda, duración 0=permanente, permiso), `license.CustomLicenseManager` (`PersistentState` `realeconomy_customlicenses`): definiciones por país + licencias que posee cada jugador con su **caducidad** (`grant`, `holdsActive`, `permits(countryId, player, perm)`). Al disolver el país se borran sus licencias (`removeCountry`, enganchado en `GroupManager.disband`).
+- **Pago:** el precio se cobra del **saldo** del comprador y va a la **cuenta del país** que emite la licencia.
+- **GUI:** botón **Licencias del país…** en el ayuntamiento (abierto a todos) → `client.LicenseScreen` lista las licencias con su precio/duración/permiso, el estado de posesión y un botón **Comprar**. La creación/edición es por comando. Payloads `OpenLicensesPayload`/`LicenseView` (S2C) y `LicenseActionPayload` (C2S); acción `OPEN_LICENSES` del ayuntamiento.
+
+Comandos (`/licencia`, alias `/licencias`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/licencia crear <nombre> <precio> <siglasMoneda> <duracion> <permiso>` | gobierno | define una licencia (`duracion` = `permanente` o periodo) |
+| `/licencia editar <nombre> <campo> <valor>` | gobierno | edita `precio`/`moneda`/`duracion`/`permiso`/`renombrar` |
+| `/licencia borrar <nombre>` | gobierno | elimina la definición (y la retira a quien la tuviera) |
+| `/licencia lista` | cualquiera | licencias que ofrece tu país |
+| `/licencia comprar <nombre>` | miembro (junto a un ayuntamiento) | compra una licencia |
+| `/licencia mias` | miembro | tus licencias y cuándo caducan |
+
+### Cómo probar la parte 5 (3ª tanda)
+
+1. País con moneda y gobierno (partes 1-2). Da saldo: `/ecoadmin saldo set TuNombre ESP 1000`.
+2. **Crear (gobierno):** `/licencia crear Comercio 100 ESP permanente tienda` y `/licencia crear Temporal 50 ESP 2m subasta`. `/licencia lista` las muestra.
+3. **Bloqueo:** sin tener la licencia, `/tienda crear` avisa de que tu país exige licencia. `/subasta crear …` igual.
+4. **Comprar:** junto a un ayuntamiento (`/ayuntamientocrear`, op), clic derecho → **Licencias del país…** → **Comprar** (o `/licencia comprar Comercio`). Se te cobran 100 a tu saldo y van a `/tesoreria`. Ahora `/tienda crear` funciona.
+5. **Caducidad:** compra la de `2m`; `/licencia mias` muestra la cuenta atrás. Al caducar, `/subasta crear` vuelve a bloquearse.
+6. **Editar/borrar:** `/licencia editar Comercio precio 200`, `/licencia editar Comercio permiso mercado`, `/licencia borrar Temporal`.
+7. **Sin definir:** un país que no cree ninguna licencia de `tienda` deja `/tienda crear` libre (como antes). Reinicia: definiciones y posesiones persisten; disuelve el país y se borran.
+
+## Mercado solo-venta (3ª tanda, parte 6) — implementada
+
+El **mercado del país** (`/mercado`, NPC "🏪 Mercado [SIGLAS]") pasa a ser **solo de venta**: los jugadores **solo pueden vender** sus items al mercado (el mercado **solo compra**). Se elimina la posibilidad de que el mercado venda al jugador. Las transacciones siguen usando **monedas físicas** de la **caja** del mercado (modelo de la parte 7, 1ª tanda), pero el precio ahora es **dinámico por oferta y demanda**.
+
+- **Lista de lo que compra:** el gobierno define qué items compra el mercado con `/mercado comprar <moneda> [precio]`, con el item en la mano, junto al mercado. Si no se indica `precio`, se usa el **precio base de la config** (`marketBasePrice`), así que todas las ofertas pueden nacer con el **mismo precio base configurable**. La GUI del cliente lista esos items con su precio actual.
+- **Oferta y demanda (por oferta/item):** cada oferta tiene un **multiplicador** (1.0 = base) que **baja al venderse** (`marketDropPerUnit` por unidad, suelo `marketMinMultiplier`) y se **recupera** hacia la base con el **tiempo real** (`marketRecoveryPerSecond`). El precio actual = `base × multiplicador` (mínimo 1). Se puede **desactivar** (`marketDynamicPricing=false` → precio fijo = base). El estado va **dentro de cada oferta** (persistido en el NBT del mercado; el reloj es real, sobrevive a reinicios).
+- **Tendencia (▲/▼):** la GUI y `/mercado info` muestran la tendencia de cada oferta: **▼ roja** si hubo ventas en los últimos `marketTrendWindowSeconds` segundos (precio a la baja), **▲ verde** si se está recuperando por debajo de la base, **= gris** si está en la base.
+- **Pago desde la caja:** vender entrega el item a la caja y paga al jugador con monedas físicas de la caja. Si la caja no tiene monedas o está llena, se vende solo lo que alcance.
+- **Migración:** las ofertas antiguas en las que el mercado *vendía* al jugador (`type=SELL`) se **descartan** al cargar; las de compra se conservan (con precio base = su precio anterior).
+
+Clases: `market.MarketOffer` (precio dinámico + tendencia), `market.MarketActions` (solo venta), `network.MarketOfferView` (vista con precio actual, base y tendencia), `client.MarketScreen`. Reutiliza `shop.ShopStorage` como caja.
+
+Comandos del gobierno (`/mercado`, alias `/market`):
+
+| Comando | Qué hace |
+|---|---|
+| `/mercado crear` | crea el NPC de mercado del país (máx `maxMarketsPerGroup`) |
+| `/mercado comprar <moneda> [precio]` | añade qué item compra el mercado (precio = base de config si se omite) |
+| `/mercado retirar <n>` | quita la oferta n (ver `/mercado info`) |
+| `/mercado info` | lista lo que compra, con precio actual, base y tendencia |
+| `/mercado borrar` | elimina el mercado y devuelve el contenido de la caja |
+
+Config (parte 6): `marketDynamicPricing` (true), `marketBasePrice` (10), `marketDropPerUnit` (0.002), `marketRecoveryPerSecond` (0.001), `marketMinMultiplier` (0.2), `marketTrendWindowSeconds` (30). Siguen vigentes `maxMarketsPerGroup`, `marketRange`, `marketGuiTexture`.
+
+### Cómo probar la parte 6 (3ª tanda)
+
+1. País con moneda (partes 1-2) y **monedas físicas**: `/ecoadmin darmoneda TuNombre ESP 500`.
+2. Gobierno: `/mercado crear` → aparece "🏪 Mercado [ESP]". Clic derecho (miembro) abre la **caja**; mete monedas (para que pueda pagar).
+3. `/mercado comprar ESP` (precio base) con troncos en la mano, y `/mercado comprar ESP 8` con otro item. `/mercado info` muestra los dos a su precio base y tendencia `=`.
+4. **Vender:** con **otro jugador** (sin ser del país), clic derecho en el mercado → GUI "El mercado compra:". Pulsa **Vender** (Shift = x64). Recibes monedas de la caja.
+5. **Oferta/demanda:** vende muchas unidades seguidas de un item → su precio baja y la tendencia pasa a **▼**. Espera un rato sin vender → el precio sube hacia la base y la tendencia pasa a **▲**, hasta volver a `=`.
+6. **Sin fondos:** vacía la caja de monedas → al vender avisa "El mercado no tiene monedas para pagar" (no imprime dinero).
+7. **Desactivar:** `marketDynamicPricing=false` + `/ecoadmin reload` → precio fijo = base, tendencia `=`.
+8. `/ecoadmin debug mercado` abre la GUI de ejemplo con las tres tendencias. Reinicia: mercado, ofertas y su estado de precio persisten.
+
+## Tiendas: icono real del item (3ª tanda, parte 7) — implementada
+
+Las ofertas de las tiendas de jugador (y, por coherencia, del mercado) se pintan con el **icono real del item de Minecraft** —el modelo que renderiza el propio juego— incluido el **brillo de encantamiento**, en vez de un emoji o icono genérico. Las ofertas de **venta y compra** se mantienen tal cual (misma lógica); solo cambia/mejora la presentación.
+
+- **Datos completos por la red:** la oferta se crea con `hand.copyWithCount(1)`, que conserva **todos los componentes** del item (encantamientos, nombre personalizado, durabilidad...). El servidor guarda el `ItemStack` completo (`template.encode(lookup)`) y lo envía con `ItemStack.OPTIONAL_PACKET_CODEC`, así que el cliente recibe el item íntegro.
+- **Icono + brillo:** `DrawContext.drawItem(stack, x, y)` pinta el modelo real del item; si el stack tiene encantamientos (`stack.hasGlint()`), el propio render añade el **brillo**. No hay que hacer nada extra para el glint: va incluido.
+- **Tooltip al pasar el ratón:** `ThemedScreen` gana un hook `renderTooltips(...)` (se pinta por encima de todo, después de los widgets) y un helper `itemTooltip(ctx, stack, iconX, iconY, mouseX, mouseY)` que, si el ratón está sobre el icono 16×16, dibuja el **tooltip real** del item (nombre, encantamientos, durabilidad, lore...). Lo usan `client.ShopScreen` y `client.MarketScreen`.
+
+Clases tocadas: `client.ui.ThemedScreen` (hook `renderTooltips` + `itemTooltip`), `client.ShopScreen`, `client.MarketScreen`. Sin cambios de red ni de persistencia (el `ItemStack` ya viajaba completo).
+
+### Cómo probar la parte 7 (3ª tanda)
+
+1. Consigue un item **encantado** (p. ej. `/give TuNombre minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:3}]} 1`, o encántalo en una mesa).
+2. Monta una tienda (parte 5) y, con el item encantado en la mano, junto a la tienda: `/tienda vender 100 ESP` (y mete stock en el almacén) o `/tienda comprar 80 ESP 10`.
+3. Con **otro jugador**, clic derecho en la tienda → en la fila de la oferta verás el **icono real** del item con el **brillo** de encantamiento.
+4. Pasa el ratón por encima del icono → aparece el **tooltip** con el nombre, los encantamientos y la durabilidad.
+5. Lo mismo vale para el **mercado** (`/mercado comprar ESP` con un item encantado → `/ecoadmin debug mercado` o clic derecho como cliente): icono real + brillo + tooltip.
+6. Comprueba que **comprar y vender siguen funcionando igual** que antes (la lógica no cambió).
+
+## Banco: cambio de moneda y transferencias (3ª tanda, parte 3) — implementada
+
+**Cambio de moneda:** el jugador elige **moneda origen**, **moneda destino** y **cantidad**. Se calcula con el **valor actual** de cada moneda (inflación/devaluación, `MonetaryManager.value`): `esmeraldas = cantidad × valor(origen)`, `recibido = floor(esmeraldas / valor(destino)) − comisión`. La **comisión** (`bankExchangeCommissionPercent`, por defecto 2 %) va a la **cuenta del país que emite la moneda destino**. La GUI **muestra cuánto recibirá antes de confirmar** (previsualización local con los valores del snapshot); el servidor recalcula de forma autoritativa al confirmar. El cambio requiere estar **junto a un banco**.
+
+**Transferencia:** el jugador indica **jugador**, **moneda** y **cantidad**; se valida que el jugador exista (caché de usuarios, funciona offline) y que haya saldo. Disponible por GUI del banco y por comando (sin necesidad de banco cerca; es un pago digital).
+
+- Lógica en `bank.BankActions`: `exchange(...)` y `quote(...)` (cotización reutilizable, devuelve `Quote{net, commission, ok, error}`). `OpenBankPayload` lleva ahora `balances`, la lista `currencies` (`BankCurrencyInfo{id,name,tag,colorName,value}`) y `exchangeCommission`. `BankActionPayload.EXCHANGE` (3): `currencyId` = origen, `target` = id destino.
+- GUI (`client.BankScreen`): sección "Cambio de moneda" con selector de destino (cicla), previsualización "Recibirás: …" y botón **Cambiar**.
+- Comandos (`/banco`): `/banco transferir <jugador> <siglasMoneda> <cantidad>` y `/banco cambiar <siglasOrigen> <siglasDestino> <cantidad>` (este, junto a un banco).
+
+Config (parte 3): `bankExchangeCommissionPercent` (2).
+
+### Cómo probar la parte 3 (3ª tanda)
+
+1. Dos países con moneda y valores distintos: crea `ESP` y `FRA`, imprime en uno para devaluarlo (`/gobierno imprimir 5000` como gobierno de ESP) → su valor baja.
+2. Dale saldo: `/ecoadmin saldo set TuNombre ESP 1000`. Junto a un banco (`/bancocrear`, op), clic derecho → sección **Cambio de moneda**: selecciona la fila ESP (origen), cicla el destino a FRA, escribe `100` → "Recibirás: X FRA" según los valores; pulsa **Cambiar**.
+3. Comprueba que la comisión aparece en la cuenta del país destino (`/tesoreria` como miembro de FRA).
+4. Por comando: `/banco cambiar ESP FRA 100` (junto a un banco). Transferencia: `/banco transferir Otro ESP 50` (desde cualquier sitio) o por el botón **Transferir** de la GUI.
+
+## Gobierno y permisos (3ª tanda, parte 2) — implementada
+
+Cada país tiene un **gobierno** = el **líder** + los **ministros** que el líder designe. **Solo el gobierno** puede gestionar la economía del país; el resto de miembros (y ajenos) **solo pueden ver**.
+
+- Modelo: `Group` guarda un conjunto `ministers` (NBT `ministers`). `Group.isGovernment(uuid)` = líder o ministro. Al salir del país o transferir el liderazgo, se limpian los ministros afectados. `GroupManager.addMinister/removeMinister` (persisten).
+- **Acciones restringidas al gobierno** (antes solo líder): impuestos (`/impuesto`, `/gobierno impuestos`), tesorería y sueldos (`/tesoreria`), política monetaria imprimir/quemar (`/gobierno`), obras públicas (`/obra`), préstamos (`/prestamo`), sueldos de trabajos (`/trabajo sueldo`), moneda (`/moneda`), mercado del país (`/mercado`). Las vistas (`info`, `lista`, `stats`, `ver`...) siguen abiertas a cualquiera.
+- **GUI del ayuntamiento:** el botón **Imprimir** y la **barra de impuestos** solo se muestran al gobierno (flag `canPrint` = `isGovernment`); a los demás aparece "(solo el gobierno gestiona)".
+- **NPCs compradores:** siguen siendo **solo del líder** (`/comprador`), según lo pedido (no de los ministros).
+
+Comandos de gobierno (bajo `/pais`, alias `/paises`/`/grupo`/`/group`):
+
+| Comando | Quién | Qué hace |
+|---|---|---|
+| `/pais gobierno` o `/pais gobierno lista` | miembro | muestra líder + ministros del país |
+| `/pais gobierno add <jugador>` | líder | nombra ministro a un miembro |
+| `/pais gobierno remove <jugador>` | líder | destituye a un ministro |
+
+`/pais info` lista también a los ministros.
+
+> **Nota de diseño:** fundar/unirse a **partidos** (`/partido`) se mantiene abierto a cualquier miembro (pluralismo político / oposición), no restringido al gobierno, pese a que la lista de la tanda mencionaba "partidos". Si se prefiere que solo el gobierno gestione partidos, es un cambio de una línea en `PartyCommands`.
+> **Nota de alcance:** el alta/baja de ministros es por **comando**; los botones de acción de gobierno ya se **ocultan** a quien no es gobierno. Un panel de gestión de gobierno con botones en el ayuntamiento se puede añadir si se quiere.
 
 ## Parte 1 (2ª tanda) — Países y partidos (implementada)
 
@@ -476,6 +652,8 @@ Comandos — tesorería (`/tesoreria`, alias `/cuenta`):
 8. Disuelve el grupo: la cuenta y sus impuestos/sueldos se eliminan.
 
 ## Parte 7 — Mercados de grupo / NPCs (implementada)
+
+> **Actualizado en la 3ª tanda (parte 6):** el mercado pasó a ser **solo de venta** (el mercado solo compra; los jugadores solo venden) con **precio por oferta/demanda y tendencia**. Las ofertas de venta del mercado (`/mercado vender`) y el cambio esmeraldas↔monedas en esa dirección **ya no existen**. La descripción de abajo es la original; ver *Mercado solo-venta (3ª tanda, parte 6)* para el comportamiento vigente.
 
 **Idea:** un grupo monta un **mercado** (NPC aldeano "🏪 Mercado [SIGLAS]") que compra y vende items a cambio de **monedas físicas** (el item moneda de la parte 2), no de saldo digital. Esto cierra el círculo de la economía física y da el **cambio esmeraldas↔monedas** como caso particular (basta una oferta cuyo item sea la esmeralda).
 

@@ -76,8 +76,8 @@ public final class LoanCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isLeader(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder puede gestionar los préstamos."));
+        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar los préstamos."));
             return null;
         }
         return g;
@@ -150,6 +150,12 @@ public final class LoanCommands {
     private static int grant(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
         Group g = leaderGroup(ctx);
         if (g == null) {
+            return 0;
+        }
+        ServerPlayerEntity banker = ctx.getSource().getPlayerOrThrow();
+        if (!com.realeconomy.license.CustomLicenseManager.get(ctx.getSource().getServer())
+                .permits(g.getId(), banker.getUuid(), com.realeconomy.license.LicensePermission.BANQUERO)) {
+            ctx.getSource().sendError(Text.literal("Tu país exige una licencia de banquero para prestar. Cómprala con /licencia comprar <nombre>."));
             return 0;
         }
         Currency c = currencyOf(ctx, g);

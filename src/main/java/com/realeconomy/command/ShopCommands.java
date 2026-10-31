@@ -66,6 +66,13 @@ public final class ShopCommands {
             ctx.getSource().sendError(Text.literal("Has alcanzado el máximo de tiendas (" + max + ")."));
             return 0;
         }
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country != null && !com.realeconomy.license.CustomLicenseManager.get(server)
+                .permits(country.getId(), player.getUuid(), com.realeconomy.license.LicensePermission.TIENDA)) {
+            ctx.getSource().sendError(Text.literal("Tu país exige una licencia para montar tiendas. "
+                    + "Mírala con /licencia lista y cómprala con /licencia comprar <nombre>."));
+            return 0;
+        }
         if (!LicenseManager.get(server).consume(player.getUuid())) {
             ctx.getSource().sendError(Text.literal("Necesitas una licencia de tienda. Cómprala en el ayuntamiento."));
             return 0;

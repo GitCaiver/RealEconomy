@@ -78,7 +78,7 @@ public final class EcoAdminCommands {
             case "banco" -> BankActions.openFor(player);
             case "ayuntamiento" -> TownhallActions.openFor(player);
             case "tienda" -> ServerPlayNetworking.send(player, new OpenShopPayload("debug", player.getNameForScoreboard(), demoOffers(player)));
-            case "mercado" -> ServerPlayNetworking.send(player, new OpenMarketPayload("debug", "[DEMO]", demoOffers(player)));
+            case "mercado" -> ServerPlayNetworking.send(player, new OpenMarketPayload("debug", "[DEMO]", demoMarketOffers(player)));
             case "comprador" -> ServerPlayNetworking.send(player, new OpenBuyerPayload("🛒 Comprador [DEMO]", demoCurrencyName(player), demoCategories()));
             default -> {
                 ctx.getSource().sendError(Text.literal("Interfaz desconocida."));
@@ -118,6 +118,14 @@ public final class EcoAdminCommands {
                 new OfferView(0, OfferView.SELL, new ItemStack(Items.DIAMOND), 25, cur, 12),
                 new OfferView(1, OfferView.SELL, new ItemStack(Items.BREAD), 4, cur, 64),
                 new OfferView(2, OfferView.BUY, new ItemStack(Items.OAK_LOG), 3, cur, 40));
+    }
+
+    private static List<com.realeconomy.network.MarketOfferView> demoMarketOffers(ServerPlayerEntity player) {
+        String cur = demoCurrencyId(player);
+        return List.of(
+                new com.realeconomy.network.MarketOfferView(0, new ItemStack(Items.OAK_LOG), 3, 3, cur, 40, com.realeconomy.network.MarketOfferView.STABLE),
+                new com.realeconomy.network.MarketOfferView(1, new ItemStack(Items.IRON_INGOT), 8, 12, cur, 25, com.realeconomy.network.MarketOfferView.DOWN),
+                new com.realeconomy.network.MarketOfferView(2, new ItemStack(Items.WHEAT), 6, 5, cur, 64, com.realeconomy.network.MarketOfferView.UP));
     }
 
     private static List<BuyerCategoryView> demoCategories() {

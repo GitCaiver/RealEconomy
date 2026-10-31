@@ -71,8 +71,8 @@ public final class TreasuryCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isLeader(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder puede gestionar la tesorería."));
+        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar la tesorería."));
             return null;
         }
         return g;

@@ -10,8 +10,8 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
-/** S2C: abre/actualiza la GUI de un mercado de grupo con sus ofertas. */
-public record OpenMarketPayload(String marketId, String label, List<OfferView> offers) implements CustomPayload {
+/** S2C: abre/actualiza la GUI de un mercado con las ofertas de compra (parte 6). */
+public record OpenMarketPayload(String marketId, String label, List<MarketOfferView> offers) implements CustomPayload {
 
     public static final CustomPayload.Id<OpenMarketPayload> ID =
             new CustomPayload.Id<>(Identifier.of(RealEconomy.MOD_ID, "open_market"));
@@ -25,13 +25,14 @@ public record OpenMarketPayload(String marketId, String label, List<OfferView> o
         buf.writeString(marketId);
         buf.writeString(label);
         buf.writeVarInt(offers.size());
-        for (OfferView o : offers) {
+        for (MarketOfferView o : offers) {
             buf.writeVarInt(o.index());
-            buf.writeVarInt(o.type());
             ItemStack.OPTIONAL_PACKET_CODEC.encode(buf, o.item());
             buf.writeVarLong(o.price());
+            buf.writeVarLong(o.basePrice());
             buf.writeString(o.currencyId());
             buf.writeVarInt(o.available());
+            buf.writeVarInt(o.trend());
         }
     }
 
@@ -39,15 +40,16 @@ public record OpenMarketPayload(String marketId, String label, List<OfferView> o
         String marketId = buf.readString();
         String label = buf.readString();
         int n = buf.readVarInt();
-        List<OfferView> offers = new ArrayList<>(n);
+        List<MarketOfferView> offers = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             int index = buf.readVarInt();
-            int type = buf.readVarInt();
             ItemStack item = ItemStack.OPTIONAL_PACKET_CODEC.decode(buf);
             long price = buf.readVarLong();
+            long basePrice = buf.readVarLong();
             String currencyId = buf.readString();
             int available = buf.readVarInt();
-            offers.add(new OfferView(index, type, item, price, currencyId, available));
+            int trend = buf.readVarInt();
+            offers.add(new MarketOfferView(index, item, price, basePrice, currencyId, available, trend));
         }
         return new OpenMarketPayload(marketId, label, offers);
     }

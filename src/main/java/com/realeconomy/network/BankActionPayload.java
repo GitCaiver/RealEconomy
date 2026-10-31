@@ -8,14 +8,16 @@ import net.minecraft.util.Identifier;
 
 /**
  * C2S: acción del jugador en el banco.
- * action: 0 = ingresar (item→saldo), 1 = retirar (saldo→item), 2 = transferir.
- * target solo se usa en transferir.
+ * action: 0 = ingresar (item→saldo), 1 = retirar (saldo→item), 2 = transferir, 3 = cambiar moneda.
+ * En transferir, target = nombre del jugador. En cambiar, currencyId = moneda origen y
+ * target = id de la moneda destino.
  */
 public record BankActionPayload(int action, String currencyId, long amount, String target) implements CustomPayload {
 
     public static final int DEPOSIT = 0;
     public static final int WITHDRAW = 1;
     public static final int TRANSFER = 2;
+    public static final int EXCHANGE = 3;
 
     public static final CustomPayload.Id<BankActionPayload> ID =
             new CustomPayload.Id<>(Identifier.of(RealEconomy.MOD_ID, "bank_action"));

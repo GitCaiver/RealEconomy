@@ -12,6 +12,8 @@ public record TownhallActionPayload(int action, long amount) implements CustomPa
     public static final int BUY_LICENSE = 0;
     public static final int PRINT = 1;
     public static final int SET_TAX = 2;
+    public static final int OPEN_TAXES = 3;
+    public static final int OPEN_LICENSES = 4;
 
     public static final CustomPayload.Id<TownhallActionPayload> ID =
             new CustomPayload.Id<>(Identifier.of(RealEconomy.MOD_ID, "townhall_action"));

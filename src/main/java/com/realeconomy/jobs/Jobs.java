@@ -38,6 +38,13 @@ public final class Jobs {
         if (wage <= 0) {
             return;
         }
+        // Si el país exige una licencia de trabajo y el jugador no la tiene vigente, no cobra.
+        if (!com.realeconomy.license.CustomLicenseManager.get(server)
+                .permits(group.getId(), player.getUuid(), com.realeconomy.license.LicensePermission.TRABAJO)) {
+            player.sendMessage(Text.literal("Necesitas una licencia de trabajo (/licencia comprar <nombre>).")
+                    .formatted(Formatting.RED), true);
+            return;
+        }
         Currency currency = CurrencyManager.get(server).getByGroup(group.getId());
         if (currency == null) {
             return;

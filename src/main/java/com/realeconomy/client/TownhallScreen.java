@@ -15,7 +15,7 @@ import net.minecraft.text.Text;
 public class TownhallScreen extends ThemedScreen {
 
     private static final int BG_W = 210;
-    private static final int BG_H = 206;
+    private static final int BG_H = 262;
 
     private OpenTownhallPayload data;
     private TextFieldWidget printField;
@@ -36,9 +36,13 @@ public class TownhallScreen extends ThemedScreen {
         buy.active = data.configured();
         this.addDrawableChild(buy);
 
+        // Panel de licencias personalizadas del país (parte 5): abierto a todos (compran aquí).
+        this.addDrawableChild(ThemedButton.of(cl, top0 + 50, cw, 18, Text.literal("Licencias del país…"),
+                b -> ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.OPEN_LICENSES, 0))));
+
         if (data.canPrint()) {
-            int py = top0 + 118;
-            this.printField = new TextFieldWidget(this.textRenderer, cl, py, 74, 18, Text.literal("cantidad"));
+            int py = top0 + 140;
+            this.printField = new com.realeconomy.client.ui.ThemedTextField(this.textRenderer, cl, py, 74, 18, Text.literal("cantidad"));
             this.printField.setPlaceholder(Text.literal("cantidad"));
             this.addDrawableChild(this.printField);
 
@@ -50,6 +54,10 @@ public class TownhallScreen extends ThemedScreen {
             }));
 
             this.addDrawableChild(new TaxSlider(cl, py + 24, cw, 18, data.taxRate()));
+
+            // Panel de impuestos por tipo (solo gobierno).
+            this.addDrawableChild(ThemedButton.of(cl, py + 46, cw, 18, Text.literal("Impuestos por tipo…"),
+                    b -> ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.OPEN_TAXES, 0))));
         }
     }
 
@@ -75,7 +83,7 @@ public class TownhallScreen extends ThemedScreen {
         }
 
         // Sección política monetaria.
-        int my = y + 56;
+        int my = y + 78;
         centered(ctx, Text.literal("· Política monetaria ·"), left + bgW / 2, my, Theme.TITLE);
         if (!data.hasCountry()) {
             text(ctx, "No perteneces a ningún país.", cl, my + 14, Theme.TEXT_DIM);
@@ -85,7 +93,7 @@ public class TownhallScreen extends ThemedScreen {
             text(ctx, "Valor: " + String.format(java.util.Locale.ROOT, "%.3f", data.value()) + " esm/moneda",
                     cl, my + 38, Theme.TEXT_DIM);
             if (!data.canPrint()) {
-                text(ctx, "(solo el líder gobierna)", cl, my + 52, Theme.TEXT_DIM);
+                text(ctx, "(solo el gobierno gestiona)", cl, my + 52, Theme.TEXT_DIM);
             }
         }
     }

@@ -143,6 +143,7 @@ public class GroupManager extends PersistentState {
             com.realeconomy.economy.MonetaryManager.get(server).remove(g.getId());
             com.realeconomy.gov.PublicWorksManager.get(server).removeCountry(g.getId());
             com.realeconomy.party.PartyManager.get(server).removeByCountry(g.getId());
+            com.realeconomy.license.CustomLicenseManager.get(server).removeCountry(g.getId());
         }
         groups.remove(g.getId());
         markDirty();
@@ -191,6 +192,24 @@ public class GroupManager extends PersistentState {
     public void setLeader(Group g, UUID uuid) {
         g.setLeader(uuid);
         markDirty();
+    }
+
+    /** Designa ministro a un miembro. Devuelve false si no procede (no es miembro, o es el líder). */
+    public boolean addMinister(Group g, UUID uuid) {
+        boolean ok = g.addMinister(uuid);
+        if (ok) {
+            markDirty();
+        }
+        return ok;
+    }
+
+    /** Destituye a un ministro. Devuelve false si no lo era. */
+    public boolean removeMinister(Group g, UUID uuid) {
+        boolean ok = g.removeMinister(uuid);
+        if (ok) {
+            markDirty();
+        }
+        return ok;
     }
 
     // ---- Invitaciones (en memoria) ----

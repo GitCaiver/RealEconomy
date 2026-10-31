@@ -67,8 +67,8 @@ public final class GovernmentCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isLeader(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder del país puede dirigir la política monetaria."));
+        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede dirigir la política monetaria."));
             return null;
         }
         return g;

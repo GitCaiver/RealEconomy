@@ -26,12 +26,18 @@ public class ModConfig {
     public String themeButtonTexture = "realeconomy:textures/gui/theme/button.png";
     /** Textura de las casillas hundidas de los listados (nine-slice 26x26, borde 6). */
     public String themeSlotTexture = "realeconomy:textures/gui/theme/slot.png";
+    /** Textura del campo de texto (nine-slice 24x24, borde 6). Sustituible por resource pack o config. */
+    public String themeFieldTexture = "realeconomy:textures/gui/theme/field.png";
+    /** Textura del carril de barra/slider (nine-slice 24x12, borde 6). Sustituible por resource pack o config. */
+    public String themeBarTexture = "realeconomy:textures/gui/theme/bar.png";
 
     // ---- Banco ----
     /** Distancia máxima (bloques) a la que se puede usar un banco. */
     public double bankRange = 6.0;
     /** Identificador de la textura de fondo de la GUI del banco (sustituible por resource pack). */
     public String bankGuiTexture = "realeconomy:textures/gui/bank.png";
+    /** Comisión (%) del cambio de moneda en el banco; va a la cuenta del país de la moneda destino. */
+    public int bankExchangeCommissionPercent = 2;
 
     // ---- Ayuntamiento / licencias (parte 4) ----
     /** Precio de una licencia de tienda. */
@@ -132,6 +138,20 @@ public class ModConfig {
     public double marketRange = 6.0;
     /** Textura de fondo de la GUI del mercado (sustituible por resource pack). */
     public String marketGuiTexture = "realeconomy:textures/gui/shop.png";
+
+    // ---- Mercado: oferta y demanda (3ª tanda, parte 6) ----
+    /** Si está activo, el precio del mercado baja al vender mucho y se recupera con el tiempo real. */
+    public boolean marketDynamicPricing = true;
+    /** Precio base por unidad (en monedas) con el que nace una oferta si no se indica otro. */
+    public long marketBasePrice = 10;
+    /** Cuánto baja el multiplicador de precio por cada unidad vendida. */
+    public double marketDropPerUnit = 0.002;
+    /** Cuánto se recupera el multiplicador por segundo real hacia la base (1.0). */
+    public double marketRecoveryPerSecond = 0.001;
+    /** Suelo del multiplicador de precio (0-1). */
+    public double marketMinMultiplier = 0.2;
+    /** Segundos tras una venta en los que la tendencia se muestra a la baja (▼). */
+    public int marketTrendWindowSeconds = 30;
 
     public static ModConfig get() {
         return INSTANCE;

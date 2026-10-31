@@ -38,14 +38,11 @@ public final class MarketCommands {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
         var root = literal("mercado")
                 .then(literal("crear").executes(MarketCommands::create))
-                .then(literal("vender")
-                        .then(argument("precio", IntegerArgumentType.integer(1))
-                                .then(argument("moneda", StringArgumentType.word())
-                                        .executes(ctx -> addOffer(ctx, MarketOffer.Type.SELL)))))
                 .then(literal("comprar")
-                        .then(argument("precio", IntegerArgumentType.integer(1))
-                                .then(argument("moneda", StringArgumentType.word())
-                                        .executes(ctx -> addOffer(ctx, MarketOffer.Type.BUY)))))
+                        .then(argument("moneda", StringArgumentType.word())
+                                .executes(ctx -> addOffer(ctx, false))
+                                .then(argument("precio", IntegerArgumentType.integer(1))
+                                        .executes(ctx -> addOffer(ctx, true)))))
                 .then(literal("retirar")
                         .then(argument("numero", IntegerArgumentType.integer(1))
                                 .executes(MarketCommands::removeOffer)))
@@ -63,8 +60,8 @@ public final class MarketCommands {
             ctx.getSource().sendError(Text.literal("No perteneces a ningún grupo."));
             return null;
         }
-        if (!g.isLeader(player.getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder puede gestionar el mercado del grupo."));
+        if (!g.isGovernment(player.getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar el mercado del país."));
             return null;
         }
         return g;
@@ -77,6 +74,11 @@ public final class MarketCommands {
         }
         ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
         MinecraftServer server = ctx.getSource().getServer();
+        if (!com.realeconomy.license.CustomLicenseManager.get(server)
+                .permits(g.getId(), player.getUuid(), com.realeconomy.license.LicensePermission.MERCADO)) {
+            ctx.getSource().sendError(Text.literal("Tu país exige una licencia para abrir mercado. Cómprala con /licencia comprar <nombre>."));
+            return 0;
+        }
         MarketManager mgr = MarketManager.get(server);
         int max = ModConfig.get().maxMarketsPerGroup;
         if (mgr.countByGroup(g.getId()) >= max) {
@@ -85,8 +87,8 @@ public final class MarketCommands {
         }
         Market market = mgr.createMarket(g.getId(), g.getName(), g.getTag());
         MarketEntities.spawn(player, market);
-        ctx.getSource().sendFeedback(() -> Text.literal("Mercado del grupo creado. Clic derecho (miembros) para abrir la caja; "
-                + "usa /mercado vender y /mercado comprar para crear ofertas.").formatted(Formatting.GREEN), false);
+        ctx.getSource().sendFeedback(() -> Text.literal("Mercado del grupo creado (solo compra: los jugadores venden aquí). "
+                + "Clic derecho (miembros) abre la caja; usa /mercado comprar <moneda> [precio] para añadir qué compra.").formatted(Formatting.GREEN), false);
         return 1;
     }
 
@@ -115,7 +117,7 @@ public final class MarketCommands {
         return c;
     }
 
-    private static int addOffer(CommandContext<ServerCommandSource> ctx, MarketOffer.Type type) throws CommandSyntaxException {
+    private static int addOffer(CommandContext<ServerCommandSource> ctx, boolean hasPrice) throws CommandSyntaxException {
         Group g = leaderGroup(ctx);
         if (g == null) {
             return 0;
@@ -127,22 +129,18 @@ public final class MarketCommands {
         }
         ItemStack hand = player.getMainHandStack();
         if (hand.isEmpty()) {
-            ctx.getSource().sendError(Text.literal("Sostén en la mano el item de la oferta."));
+            ctx.getSource().sendError(Text.literal("Sostén en la mano el item que quieres que el mercado compre."));
             return 0;
         }
         Currency c = resolveCurrency(ctx, StringArgumentType.getString(ctx, "moneda"));
         if (c == null) {
             return 0;
         }
-        int price = IntegerArgumentType.getInteger(ctx, "precio");
-        market.getOffers().add(new MarketOffer(type, hand.copyWithCount(1), price, c.getId()));
+        long price = hasPrice ? IntegerArgumentType.getInteger(ctx, "precio") : ModConfig.get().marketBasePrice;
+        market.getOffers().add(new MarketOffer(hand.copyWithCount(1), price, c.getId()));
         MarketManager.get(ctx.getSource().getServer()).markDirty();
-        String verbo = type == MarketOffer.Type.SELL ? "venta" : "compra";
-        String nota = type == MarketOffer.Type.SELL
-                ? "Mete stock del item en la caja."
-                : "Mete monedas en la caja para poder pagar.";
-        ctx.getSource().sendFeedback(() -> Text.literal("Oferta de " + verbo + " creada: " + hand.getName().getString()
-                + " a " + price + " " + c.getName() + ". " + nota).formatted(Formatting.GREEN), false);
+        ctx.getSource().sendFeedback(() -> Text.literal("Oferta creada: el mercado compra " + hand.getName().getString()
+                + " a " + price + " " + c.getName() + " (precio base). Mete monedas en la caja para pagar.").formatted(Formatting.GREEN), false);
         return 1;
     }
 
@@ -181,14 +179,18 @@ public final class MarketCommands {
         CurrencyManager cm = CurrencyManager.get(ctx.getSource().getServer());
         List<MarketOffer> offers = market.getOffers();
         ctx.getSource().sendFeedback(() -> {
-            net.minecraft.text.MutableText t = Text.literal("=== Mercado de tu grupo (" + offers.size() + " ofertas) ===");
+            net.minecraft.text.MutableText t = Text.literal("=== Mercado de tu grupo (" + offers.size() + " ofertas de compra) ===");
             for (int i = 0; i < offers.size(); i++) {
                 MarketOffer o = offers.get(i);
                 Currency c = cm.getById(o.getCurrencyId());
                 String money = c != null ? c.getName() : o.getCurrencyId();
-                String kind = o.getType() == MarketOffer.Type.SELL ? "VENDE" : "COMPRA";
-                t.append(Text.literal("\n" + (i + 1) + ". " + kind + " " + o.getTemplate().getName().getString()
-                        + " a " + o.getPrice() + " " + money));
+                String trend = switch (o.trend()) {
+                    case UP -> " ▲";
+                    case DOWN -> " ▼";
+                    default -> "";
+                };
+                t.append(Text.literal("\n" + (i + 1) + ". COMPRA " + o.getTemplate().getName().getString()
+                        + " a " + o.currentPrice() + " " + money + " (base " + o.getBasePrice() + ")" + trend));
             }
             return t;
         }, false);

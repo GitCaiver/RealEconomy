@@ -54,6 +54,7 @@ public class ShopScreen extends ThemedScreen {
             boolean sell = o.type() == OfferView.SELL;
 
             Theme.slot(ctx, cl, rowY, contentWidth(), ROW_H - 3);
+            // Icono real del item de Minecraft, con su brillo de encantamiento (parte 7).
             ctx.drawItem(o.item(), cl + 4, rowY + 3);
 
             CurrencyEntry entry = ClientCurrencyStore.getEntry(o.currencyId());
@@ -75,6 +76,17 @@ public class ShopScreen extends ThemedScreen {
         } else {
             text(ctx, Text.literal("Mantén Shift para x64").formatted(Formatting.ITALIC),
                     cl, contentTop() + MAX_ROWS * ROW_H + 2, Theme.TEXT_DIM);
+        }
+    }
+
+    @Override
+    protected void renderTooltips(DrawContext ctx, int mouseX, int mouseY) {
+        int cl = contentLeft();
+        int count = Math.min(MAX_ROWS, data.offers().size());
+        for (int i = 0; i < count; i++) {
+            OfferView o = data.offers().get(i);
+            int rowY = contentTop() + i * ROW_H;
+            itemTooltip(ctx, o.item(), cl + 4, rowY + 3, mouseX, mouseY);
         }
     }
 

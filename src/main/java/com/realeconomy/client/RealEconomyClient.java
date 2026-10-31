@@ -48,7 +48,7 @@ public class RealEconomyClient implements ClientModInitializer {
 
         // Abre o actualiza la interfaz del banco.
         ClientPlayNetworking.registerGlobalReceiver(OpenBankPayload.ID, (payload, context) ->
-                context.client().execute(() -> openOrUpdateBank(context.client(), payload.balances())));
+                context.client().execute(() -> openOrUpdateBank(context.client(), payload)));
 
         // Abre o actualiza la interfaz del ayuntamiento.
         ClientPlayNetworking.registerGlobalReceiver(OpenTownhallPayload.ID, (payload, context) ->
@@ -65,6 +65,26 @@ public class RealEconomyClient implements ClientModInitializer {
         // Abre o actualiza la interfaz de un comprador por categorías.
         ClientPlayNetworking.registerGlobalReceiver(OpenBuyerPayload.ID, (payload, context) ->
                 context.client().execute(() -> openOrUpdateBuyer(context.client(), payload)));
+
+        // Abre o actualiza el panel de impuestos por tipo.
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenTaxPolicyPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof TaxScreen tax) {
+                        tax.refresh(payload);
+                    } else {
+                        context.client().setScreen(new TaxScreen(payload));
+                    }
+                }));
+
+        // Abre o actualiza el panel de licencias personalizadas.
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenLicensesPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof LicenseScreen lic) {
+                        lic.refresh(payload);
+                    } else {
+                        context.client().setScreen(new LicenseScreen(payload));
+                    }
+                }));
 
         // El dato de tooltip de la moneda se convierte en el componente que pinta el icono.
         TooltipComponentCallback.EVENT.register(data -> {
@@ -87,11 +107,11 @@ public class RealEconomyClient implements ClientModInitializer {
         });
     }
 
-    private static void openOrUpdateBank(MinecraftClient client, Map<String, Long> balances) {
+    private static void openOrUpdateBank(MinecraftClient client, OpenBankPayload payload) {
         if (client.currentScreen instanceof BankScreen bank) {
-            bank.refresh(balances);
+            bank.refresh(payload);
         } else {
-            client.setScreen(new BankScreen(balances));
+            client.setScreen(new BankScreen(payload));
         }
     }
 

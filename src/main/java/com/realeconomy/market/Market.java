@@ -99,7 +99,10 @@ public class Market {
                 c.getString("groupName"), c.getString("groupTag"));
         NbtList offerList = c.getList("offers", NbtElement.COMPOUND_TYPE);
         for (int i = 0; i < offerList.size(); i++) {
-            market.offers.add(MarketOffer.fromNbt(offerList.getCompound(i), lookup));
+            MarketOffer o = MarketOffer.fromNbt(offerList.getCompound(i), lookup);
+            if (o != null) { // null = oferta antigua de venta del mercado (ya no existe)
+                market.offers.add(o);
+            }
         }
         NbtList storageList = c.getList("storage", NbtElement.COMPOUND_TYPE);
         for (int i = 0; i < storageList.size(); i++) {

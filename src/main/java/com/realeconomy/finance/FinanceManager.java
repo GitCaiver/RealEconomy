@@ -57,6 +57,8 @@ public class FinanceManager extends PersistentState {
         int taxRate = 0;
         /** Último cobro de la tasa general (ms, reloj real). */
         long taxRateLast = 0L;
+        /** Política de impuestos por tipo (3ª tanda, parte 4). */
+        TaxPolicy policy = new TaxPolicy();
     }
 
     private final Map<String, GroupFinance> byGroup = new HashMap<>();
@@ -204,6 +206,52 @@ public class FinanceManager extends PersistentState {
         }
     }
 
+    // ---- Política de impuestos por tipo (parte 4, 3ª tanda) ----
+
+    /** Política del país (solo lectura; por defecto si no existe). */
+    public TaxPolicy getPolicy(String groupId) {
+        GroupFinance gf = byGroup.get(groupId);
+        return gf == null ? new TaxPolicy() : gf.policy;
+    }
+
+    /** Política editable del país (se crea si no existe). Llama a {@link #markDirty()} tras editar. */
+    public TaxPolicy editPolicy(String groupId) {
+        return getOrCreate(groupId).policy;
+    }
+
+    public void savePolicy() {
+        markDirty();
+    }
+
+    /** % de comisión de subasta efectivo (política del país, o config si está en -1). */
+    public int effectiveAuctionPercent(String groupId) {
+        int p = getPolicy(groupId).auctionPercent;
+        return p >= 0 ? p : Math.max(0, Math.min(100, com.realeconomy.config.ModConfig.get().auctionCommissionPercent));
+    }
+
+    /** % de comisión de cambio efectivo (política del país, o config si está en -1). */
+    public int effectiveExchangePercent(String groupId) {
+        int p = getPolicy(groupId).exchangePercent;
+        return p >= 0 ? p : Math.max(0, Math.min(100, com.realeconomy.config.ModConfig.get().bankExchangeCommissionPercent));
+    }
+
+    /**
+     * Cobra un impuesto transaccional: mueve {@code gross*percent/100} del pagador hacia la cuenta
+     * del país y devuelve lo cobrado. {@code payer} puede ser null (p. ej. cuando el importe ya se
+     * descontó y solo hay que enrutar el corte); en ese caso solo abona a la cuenta.
+     */
+    public long applyTransactionTax(MinecraftServer server, Group country, int percent, long gross, String currencyId) {
+        if (country == null || percent <= 0 || gross <= 0 || currencyId == null) {
+            return 0L;
+        }
+        long cut = gross * percent / 100L;
+        if (cut <= 0) {
+            return 0L;
+        }
+        BalanceManager.get(server).add(accountUuid(country), currencyId, cut);
+        return cut;
+    }
+
     // ---- Préstamos (parte 9) ----
 
     public Map<UUID, Loan> loans(String groupId) {
@@ -280,6 +328,18 @@ public class FinanceManager extends PersistentState {
                 gf.taxRateLast = now;
                 changed = true;
             }
+            // Cuota periódica por tienda (parte 4, 3ª tanda).
+            if (gf.policy.shopFeeAmount > 0) {
+                long feePeriod = com.realeconomy.util.TimeUtil.parsePeriod(gf.policy.shopFeePeriod);
+                if (feePeriod <= 0) {
+                    feePeriod = 86_400_000L;
+                }
+                if (now - gf.policy.shopFeeLast >= feePeriod) {
+                    collectShopFee(server, g, gf, currencyId, account, balances);
+                    gf.policy.shopFeeLast = now;
+                    changed = true;
+                }
+            }
             for (Salary salary : gf.salaries.values()) {
                 if (salary.isDue(now)) {
                     paySalary(server, g, salary, currencyId, account, balances);
@@ -335,6 +395,32 @@ public class FinanceManager extends PersistentState {
             gf.loans.remove(borrower);
         }
         return changed;
+    }
+
+    /** Cobra la cuota periódica por tienda a cada miembro según cuántas tiendas tenga. */
+    private void collectShopFee(MinecraftServer server, Group g, GroupFinance gf, String currencyId,
+                               UUID account, BalanceManager balances) {
+        var shops = com.realeconomy.shop.ShopManager.get(server);
+        long collected = 0L;
+        for (UUID member : g.getMembers()) {
+            int n = shops.countByOwner(member);
+            if (n <= 0) {
+                continue;
+            }
+            long amount = gf.policy.shopFeeAmount * n;
+            long bal = balances.get(member, currencyId);
+            long charge = Math.min(amount, bal);
+            if (charge <= 0) {
+                continue;
+            }
+            balances.subtract(member, currencyId, charge);
+            collected += charge;
+            notify(server, member, Text.literal("Cuota de tienda (" + n + "×" + gf.policy.shopFeeAmount + "): -"
+                    + charge + " a ").append(tagText(g)).formatted(Formatting.YELLOW));
+        }
+        if (collected > 0) {
+            balances.add(account, currencyId, collected);
+        }
     }
 
     private void collectTax(MinecraftServer server, Group g, Tax tax, String currencyId,
@@ -397,13 +483,14 @@ public class FinanceManager extends PersistentState {
         for (Map.Entry<String, GroupFinance> e : byGroup.entrySet()) {
             GroupFinance gf = e.getValue();
             if (gf.taxes.isEmpty() && gf.salaries.isEmpty() && gf.wages.isEmpty() && gf.loans.isEmpty()
-                    && gf.taxRate == 0) {
+                    && gf.taxRate == 0 && gf.policy.isDefault()) {
                 continue;
             }
             NbtCompound gc = new NbtCompound();
             gc.putString("group", e.getKey());
             gc.putInt("taxRate", gf.taxRate);
             gc.putLong("taxRateLast", gf.taxRateLast);
+            gc.put("policy", gf.policy.toNbt());
             NbtList taxList = new NbtList();
             for (Tax t : gf.taxes) {
                 taxList.add(t.toNbt());
@@ -438,6 +525,9 @@ public class FinanceManager extends PersistentState {
             GroupFinance gf = new GroupFinance();
             gf.taxRate = gc.getInt("taxRate");
             gf.taxRateLast = gc.getLong("taxRateLast");
+            if (gc.contains("policy")) {
+                gf.policy = TaxPolicy.fromNbt(gc.getCompound("policy"));
+            }
             NbtList taxList = gc.getList("taxes", NbtElement.COMPOUND_TYPE);
             for (int j = 0; j < taxList.size(); j++) {
                 gf.taxes.add(Tax.fromNbt(taxList.getCompound(j)));

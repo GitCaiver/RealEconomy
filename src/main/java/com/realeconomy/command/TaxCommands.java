@@ -41,6 +41,16 @@ public final class TaxCommands {
                                                 .then(argument("periodo", StringArgumentType.word())
                                                         .executes(ctx -> createPercent(ctx)))))))
                 .then(literal("lista").executes(TaxCommands::list))
+                .then(literal("tipos").executes(TaxCommands::listTypes))
+                .then(literal("tipo")
+                        .then(argument("tipo", StringArgumentType.word())
+                                .suggests((c, b) -> net.minecraft.command.CommandSource.suggestMatching(
+                                        java.util.List.of("renta", "ventatienda", "cuotatienda", "mercado",
+                                                "transferencia", "cambio", "subasta"), b))
+                                .then(argument("valor", IntegerArgumentType.integer(-1, 1_000_000))
+                                        .executes(ctx -> setType(ctx, null))
+                                        .then(argument("periodo", StringArgumentType.word())
+                                                .executes(ctx -> setType(ctx, StringArgumentType.getString(ctx, "periodo")))))))
                 .then(literal("borrar")
                         .then(argument("nombre", StringArgumentType.word())
                                 .executes(TaxCommands::remove)))
@@ -68,8 +78,8 @@ public final class TaxCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isLeader(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder puede gestionar los impuestos."));
+        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar los impuestos."));
             return null;
         }
         return g;
@@ -164,6 +174,100 @@ public final class TaxCommands {
             return t;
         }, false);
         return 1;
+    }
+
+    /** Lista los tipos de impuesto configurables del país y su valor actual. */
+    private static int listTypes(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        Group g = playerGroup(ctx);
+        if (g == null) {
+            return 0;
+        }
+        FinanceManager fm = FinanceManager.get(ctx.getSource().getServer());
+        var p = fm.getPolicy(g.getId());
+        int rent = fm.getTaxRate(g.getId());
+        ctx.getSource().sendFeedback(() -> {
+            MutableText t = Text.literal("Impuestos por tipo de ")
+                    .append(Text.literal("[" + g.getTag() + "]").formatted(g.getColor())).append(":");
+            t.append(Text.literal("\n - renta (miembros): " + rent + "%  [cada " + com.realeconomy.util.TimeUtil.format(
+                    com.realeconomy.util.TimeUtil.parsePeriod(com.realeconomy.config.ModConfig.get().countryTaxPeriod)) + "]"));
+            t.append(Text.literal("\n - ventatienda: " + p.shopSalePercent + "%"));
+            t.append(Text.literal("\n - cuotatienda: " + p.shopFeeAmount + " cada " + p.shopFeePeriod + "/tienda"));
+            t.append(Text.literal("\n - mercado (venta a NPC): " + p.marketSalePercent + "%"));
+            t.append(Text.literal("\n - transferencia: " + p.transferPercent + "%"));
+            t.append(Text.literal("\n - cambio: " + fm.effectiveExchangePercent(g.getId()) + "%"
+                    + (p.exchangePercent < 0 ? " (por defecto)" : "")));
+            t.append(Text.literal("\n - subasta: " + fm.effectiveAuctionPercent(g.getId()) + "%"
+                    + (p.auctionPercent < 0 ? " (por defecto)" : "")));
+            t.append(Text.literal("\nEditar: /impuesto tipo <tipo> <valor> [periodo]").formatted(
+                    net.minecraft.util.Formatting.GRAY));
+            return t;
+        }, false);
+        return 1;
+    }
+
+    /** Ajusta un tipo de impuesto. valor = % (o cantidad en cuotatienda; -1 = por defecto en cambio/subasta). */
+    private static int setType(CommandContext<ServerCommandSource> ctx, String period) throws CommandSyntaxException {
+        Group g = leaderGroup(ctx);
+        if (g == null) {
+            return 0;
+        }
+        String type = StringArgumentType.getString(ctx, "tipo").toLowerCase(java.util.Locale.ROOT);
+        int value = IntegerArgumentType.getInteger(ctx, "valor");
+        FinanceManager fm = FinanceManager.get(ctx.getSource().getServer());
+        var p = fm.editPolicy(g.getId());
+        String msg;
+        switch (type) {
+            case "renta" -> {
+                fm.setTaxRate(g.getId(), clamp(value));
+                msg = "Impuesto de renta ajustado al " + clamp(value) + "%.";
+            }
+            case "ventatienda" -> {
+                p.shopSalePercent = clamp(value);
+                msg = "Impuesto de venta de tienda: " + p.shopSalePercent + "%.";
+            }
+            case "mercado" -> {
+                p.marketSalePercent = clamp(value);
+                msg = "Impuesto de venta a NPC de mercado: " + p.marketSalePercent + "%.";
+            }
+            case "transferencia" -> {
+                p.transferPercent = clamp(value);
+                msg = "Impuesto de transferencia: " + p.transferPercent + "%.";
+            }
+            case "cambio" -> {
+                p.exchangePercent = value < 0 ? -1 : clamp(value);
+                msg = "Comisión de cambio: " + (p.exchangePercent < 0 ? "por defecto" : p.exchangePercent + "%") + ".";
+            }
+            case "subasta" -> {
+                p.auctionPercent = value < 0 ? -1 : clamp(value);
+                msg = "Comisión de subasta: " + (p.auctionPercent < 0 ? "por defecto" : p.auctionPercent + "%") + ".";
+            }
+            case "cuotatienda" -> {
+                p.shopFeeAmount = Math.max(0, value);
+                if (period != null) {
+                    long parsed = TimeUtil.parsePeriod(period);
+                    if (parsed < MIN_PERIOD) {
+                        ctx.getSource().sendError(Text.literal("Periodo no válido (mínimo 5s)."));
+                        return 0;
+                    }
+                    p.shopFeePeriod = period;
+                }
+                p.shopFeeLast = System.currentTimeMillis();
+                msg = "Cuota de tienda: " + p.shopFeeAmount + " cada " + p.shopFeePeriod + " por tienda.";
+            }
+            default -> {
+                ctx.getSource().sendError(Text.literal("Tipo no válido. Usa: renta, ventatienda, cuotatienda, "
+                        + "mercado, transferencia, cambio, subasta."));
+                return 0;
+            }
+        }
+        fm.savePolicy();
+        String fmsg = msg;
+        ctx.getSource().sendFeedback(() -> Text.literal(fmsg), true);
+        return 1;
+    }
+
+    private static int clamp(int v) {
+        return Math.max(0, Math.min(100, v));
     }
 
     private static int remove(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {

@@ -73,8 +73,8 @@ public final class PublicWorksCommands {
             ctx.getSource().sendError(Text.literal("No perteneces a ningún país."));
             return null;
         }
-        if (!g.isLeader(p.getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder del país puede gestionar las obras públicas."));
+        if (!g.isGovernment(p.getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar las obras públicas."));
             return null;
         }
         return g;

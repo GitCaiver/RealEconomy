@@ -36,6 +36,10 @@ public final class ModNetworking {
         PayloadTypeRegistry.playC2S().register(MarketActionPayload.ID, MarketActionPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenBuyerPayload.ID, OpenBuyerPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(BuyerActionPayload.ID, BuyerActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenTaxPolicyPayload.ID, OpenTaxPolicyPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(TaxPolicyActionPayload.ID, TaxPolicyActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenLicensesPayload.ID, OpenLicensesPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(LicenseActionPayload.ID, LicenseActionPayload.CODEC);
     }
 
     /** Registra los receptores de paquetes del cliente (C2S). Llamar en la init común. */
@@ -50,6 +54,10 @@ public final class ModNetworking {
                 context.player().getServer().execute(() -> MarketActions.handle(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(BuyerActionPayload.ID, (payload, context) ->
                 context.player().getServer().execute(() -> BuyerActions.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(TaxPolicyActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> TownhallActions.handleTaxAction(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(LicenseActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> TownhallActions.handleLicenseAction(context.player(), payload)));
     }
 
     /** Envía a un jugador toda la info de monedas (lista + iconos). */

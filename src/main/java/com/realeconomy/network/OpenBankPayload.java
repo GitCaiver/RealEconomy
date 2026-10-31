@@ -6,11 +6,17 @@ import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-/** S2C: abre/actualiza la GUI del banco con los saldos del jugador. */
-public record OpenBankPayload(Map<String, Long> balances) implements CustomPayload {
+/**
+ * S2C: abre/actualiza la GUI del banco con los saldos del jugador, la lista de monedas
+ * (con su valor actual, para el cambio de moneda) y la comisión de cambio configurada.
+ */
+public record OpenBankPayload(Map<String, Long> balances, List<BankCurrencyInfo> currencies,
+                              int exchangeCommission) implements CustomPayload {
 
     public static final CustomPayload.Id<OpenBankPayload> ID =
             new CustomPayload.Id<>(Identifier.of(RealEconomy.MOD_ID, "open_bank"));
@@ -26,6 +32,11 @@ public record OpenBankPayload(Map<String, Long> balances) implements CustomPaylo
             buf.writeString(e.getKey());
             buf.writeVarLong(e.getValue());
         }
+        buf.writeVarInt(currencies.size());
+        for (BankCurrencyInfo info : currencies) {
+            info.write(buf);
+        }
+        buf.writeVarInt(exchangeCommission);
     }
 
     private static OpenBankPayload read(PacketByteBuf buf) {
@@ -34,7 +45,13 @@ public record OpenBankPayload(Map<String, Long> balances) implements CustomPaylo
         for (int i = 0; i < n; i++) {
             map.put(buf.readString(), buf.readVarLong());
         }
-        return new OpenBankPayload(map);
+        int m = buf.readVarInt();
+        List<BankCurrencyInfo> list = new ArrayList<>(m);
+        for (int i = 0; i < m; i++) {
+            list.add(BankCurrencyInfo.read(buf));
+        }
+        int commission = buf.readVarInt();
+        return new OpenBankPayload(map, list, commission);
     }
 
     @Override

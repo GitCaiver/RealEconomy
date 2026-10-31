@@ -73,8 +73,8 @@ public final class JobCommands {
         if (g == null) {
             return 0;
         }
-        if (!g.isLeader(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el líder puede fijar los sueldos."));
+        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede fijar los sueldos."));
             return 0;
         }
         String key = StringArgumentType.getString(ctx, "trabajo");

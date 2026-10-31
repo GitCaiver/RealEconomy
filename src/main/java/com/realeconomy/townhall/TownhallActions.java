@@ -58,7 +58,7 @@ public final class TownhallActions {
                 MonetaryManager mm = MonetaryManager.get(server);
                 circulation = mm.circulation(cc.getId());
                 value = mm.value(cc.getId());
-                canPrint = country.isLeader(player.getUuid());
+                canPrint = country.isGovernment(player.getUuid());
             }
         }
 
@@ -86,19 +86,157 @@ public final class TownhallActions {
         }
         if (action.action() == TownhallActionPayload.BUY_LICENSE) {
             buyLicense(player);
+            openFor(player);
         } else if (action.action() == TownhallActionPayload.PRINT) {
             printMoney(player, action.amount());
+            openFor(player);
         } else if (action.action() == TownhallActionPayload.SET_TAX) {
             setTax(player, (int) action.amount());
+            openFor(player);
+        } else if (action.action() == TownhallActionPayload.OPEN_TAXES) {
+            openTaxPanel(player);
+        } else if (action.action() == TownhallActionPayload.OPEN_LICENSES) {
+            openLicensePanel(player);
         }
-        openFor(player);
+    }
+
+    // ---- Panel de licencias personalizadas (parte 5, 3ª tanda) ----
+
+    /** Envía el panel de licencias personalizadas del país del jugador. */
+    public static void openLicensePanel(ServerPlayerEntity player) {
+        MinecraftServer server = player.getServer();
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country == null) {
+            player.sendMessage(Text.literal("No perteneces a ningún país.").formatted(Formatting.RED));
+            return;
+        }
+        com.realeconomy.license.CustomLicenseManager clm = com.realeconomy.license.CustomLicenseManager.get(server);
+        CurrencyManager cm = CurrencyManager.get(server);
+        java.util.List<com.realeconomy.network.LicenseView> views = new java.util.ArrayList<>();
+        for (com.realeconomy.license.License l : clm.defs(country.getId())) {
+            Currency cur = cm.getById(l.getCurrencyId());
+            String curName = cur == null ? "¿?" : cur.getName();
+            String curColor = "gold";
+            Group issuer = GroupManager.get(server).getById(cur == null ? null : cur.getGroupId());
+            if (issuer != null && issuer.getColor() != null) {
+                curColor = issuer.getColor().getName();
+            }
+            views.add(new com.realeconomy.network.LicenseView(
+                    l.getId(), l.getName(), l.getPrice(), curName, curColor,
+                    l.getDurationMillis(), l.getPermission().description(),
+                    clm.heldExpiry(player.getUuid(), l.getId())));
+        }
+        ServerPlayNetworking.send(player, new com.realeconomy.network.OpenLicensesPayload(
+                country.isGovernment(player.getUuid()),
+                country.getTag(),
+                (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName(),
+                views));
+    }
+
+    public static void handleLicenseAction(ServerPlayerEntity player, com.realeconomy.network.LicenseActionPayload action) {
+        if (!TownhallEntities.isNear(player)) {
+            player.sendMessage(Text.literal("No hay ningún ayuntamiento cerca.").formatted(Formatting.RED));
+            return;
+        }
+        MinecraftServer server = player.getServer();
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country == null) {
+            return;
+        }
+        com.realeconomy.license.CustomLicenseManager clm = com.realeconomy.license.CustomLicenseManager.get(server);
+        com.realeconomy.license.License def = clm.defById(action.defId());
+        if (def == null || !def.getCountryId().equals(country.getId())) {
+            player.sendMessage(Text.literal("Esa licencia ya no existe.").formatted(Formatting.RED));
+            openLicensePanel(player);
+            return;
+        }
+        BalanceManager bm = BalanceManager.get(server);
+        if (!bm.subtract(player.getUuid(), def.getCurrencyId(), def.getPrice())) {
+            Currency cur = CurrencyManager.get(server).getById(def.getCurrencyId());
+            player.sendMessage(Text.literal("Saldo insuficiente. Cuesta " + def.getPrice() + " "
+                    + (cur == null ? "" : cur.getName()) + ".").formatted(Formatting.RED));
+            openLicensePanel(player);
+            return;
+        }
+        bm.add(FinanceManager.accountUuid(country), def.getCurrencyId(), def.getPrice());
+        clm.grant(player.getUuid(), def, System.currentTimeMillis());
+        player.sendMessage(Text.literal("Licencia \"" + def.getName() + "\" comprada. Permite "
+                + def.getPermission().description() + ".").formatted(Formatting.GREEN));
+        openLicensePanel(player);
+    }
+
+    // ---- Panel de impuestos por tipo (parte 4, 3ª tanda) ----
+
+    /** Envía el panel de impuestos por tipo del país del jugador. */
+    public static void openTaxPanel(ServerPlayerEntity player) {
+        MinecraftServer server = player.getServer();
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country == null) {
+            player.sendMessage(Text.literal("No perteneces a ningún país.").formatted(Formatting.RED));
+            return;
+        }
+        FinanceManager fm = FinanceManager.get(server);
+        var p = fm.getPolicy(country.getId());
+        boolean gov = country.isGovernment(player.getUuid());
+        ServerPlayNetworking.send(player, new com.realeconomy.network.OpenTaxPolicyPayload(
+                gov,
+                country.getTag(),
+                (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName(),
+                fm.getTaxRate(country.getId()),
+                p.shopSalePercent,
+                p.marketSalePercent,
+                p.transferPercent,
+                fm.effectiveExchangePercent(country.getId()), p.exchangePercent < 0,
+                fm.effectiveAuctionPercent(country.getId()), p.auctionPercent < 0,
+                p.shopFeeAmount, p.shopFeePeriod));
+    }
+
+    public static void handleTaxAction(ServerPlayerEntity player, com.realeconomy.network.TaxPolicyActionPayload action) {
+        if (!TownhallEntities.isNear(player)) {
+            player.sendMessage(Text.literal("No hay ningún ayuntamiento cerca.").formatted(Formatting.RED));
+            return;
+        }
+        MinecraftServer server = player.getServer();
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country == null) {
+            return;
+        }
+        if (!country.isGovernment(player.getUuid())) {
+            player.sendMessage(Text.literal("Solo el gobierno puede editar los impuestos.").formatted(Formatting.RED));
+            return;
+        }
+        FinanceManager fm = FinanceManager.get(server);
+        var p = fm.editPolicy(country.getId());
+        int d = action.delta();
+        switch (action.type()) {
+            case "renta" -> fm.setTaxRate(country.getId(), clamp(fm.getTaxRate(country.getId()) + d));
+            case "ventatienda" -> p.shopSalePercent = clamp(p.shopSalePercent + d);
+            case "mercado" -> p.marketSalePercent = clamp(p.marketSalePercent + d);
+            case "transferencia" -> p.transferPercent = clamp(p.transferPercent + d);
+            case "cambio" -> p.exchangePercent = p.exchangePercent < 0
+                    ? clamp(fm.effectiveExchangePercent(country.getId()) + d) : clamp(p.exchangePercent + d);
+            case "subasta" -> p.auctionPercent = p.auctionPercent < 0
+                    ? clamp(fm.effectiveAuctionPercent(country.getId()) + d) : clamp(p.auctionPercent + d);
+            case "cuotatienda" -> {
+                p.shopFeeAmount = Math.max(0, p.shopFeeAmount + d);
+                p.shopFeeLast = System.currentTimeMillis();
+            }
+            default -> {
+            }
+        }
+        fm.savePolicy();
+        openTaxPanel(player);
+    }
+
+    private static int clamp(int v) {
+        return Math.max(0, Math.min(100, v));
     }
 
     private static void setTax(ServerPlayerEntity player, int rate) {
         MinecraftServer server = player.getServer();
         Group g = GroupManager.get(server).getByPlayer(player.getUuid());
-        if (g == null || !g.isLeader(player.getUuid())) {
-            player.sendMessage(Text.literal("Solo el líder del país puede ajustar los impuestos.").formatted(Formatting.RED));
+        if (g == null || !g.isGovernment(player.getUuid())) {
+            player.sendMessage(Text.literal("Solo el gobierno (líder o ministros) puede ajustar los impuestos.").formatted(Formatting.RED));
             return;
         }
         FinanceManager.get(server).setTaxRate(g.getId(), rate);
@@ -109,8 +247,8 @@ public final class TownhallActions {
     private static void printMoney(ServerPlayerEntity player, long amount) {
         MinecraftServer server = player.getServer();
         Group g = GroupManager.get(server).getByPlayer(player.getUuid());
-        if (g == null || !g.isLeader(player.getUuid())) {
-            player.sendMessage(Text.literal("Solo el líder del país puede imprimir dinero.").formatted(Formatting.RED));
+        if (g == null || !g.isGovernment(player.getUuid())) {
+            player.sendMessage(Text.literal("Solo el gobierno (líder o ministros) puede imprimir dinero.").formatted(Formatting.RED));
             return;
         }
         Currency cc = CurrencyManager.get(server).getByGroup(g.getId());

@@ -26,12 +26,11 @@ public abstract class ThemedSlider extends SliderWidget {
         int w = getWidth();
         int h = getHeight();
 
-        // Carril hundido.
-        Theme.slot(ctx, x, y, w, h);
-        // Relleno dorado hasta el tirador (progreso).
+        // Carril hundido con relleno dorado hasta el tirador (progreso).
         int fill = (int) (this.value * (w - HANDLE_W));
+        Theme.bar(ctx, x, y, w, h);
         if (fill > 0) {
-            ctx.fill(x + 3, y + 3, x + 3 + fill, y + h - 3, 0x66CBA14B);
+            ctx.fill(x + 2, y + 2, x + 2 + fill + HANDLE_W / 2, y + h - 2, Theme.BAR_FILL);
         }
         // Tirador.
         int hx = x + (int) (this.value * (w - HANDLE_W));
@@ -39,6 +38,6 @@ public abstract class ThemedSlider extends SliderWidget {
 
         var tr = MinecraftClient.getInstance().textRenderer;
         int tx = x + (w - tr.getWidth(getMessage())) / 2;
-        ctx.drawText(tr, getMessage(), tx, y + (h - 8) / 2, Theme.BUTTON_TEXT, false);
+        ctx.drawText(tr, getMessage(), tx, y + (h - 8) / 2, Theme.TEXT, true);
     }
 }

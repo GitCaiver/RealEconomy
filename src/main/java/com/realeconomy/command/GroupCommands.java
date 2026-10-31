@@ -71,6 +71,15 @@ public final class GroupCommands {
                 .then(literal("setname")
                         .then(argument("nombre", StringArgumentType.greedyString())
                                 .executes(GroupCommands::setName)))
+                .then(literal("gobierno")
+                        .executes(GroupCommands::governmentList)
+                        .then(literal("lista").executes(GroupCommands::governmentList))
+                        .then(literal("add")
+                                .then(argument("jugador", StringArgumentType.word())
+                                        .executes(ctx -> setMinister(ctx, true))))
+                        .then(literal("remove")
+                                .then(argument("jugador", StringArgumentType.word())
+                                        .executes(ctx -> setMinister(ctx, false)))))
                 .then(literal("info")
                         .executes(ctx -> info(ctx, null))
                         .then(argument("siglas", StringArgumentType.word())
@@ -362,6 +371,84 @@ public final class GroupCommands {
         return 1;
     }
 
+    /** Designa (add) o destituye (remove) un ministro. Solo el líder. */
+    private static int setMinister(CommandContext<ServerCommandSource> ctx, boolean add) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        MinecraftServer server = ctx.getSource().getServer();
+        GroupManager mgr = GroupManager.get(server);
+
+        Group g = mgr.getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            error(ctx, "Solo el líder del país puede designar o destituir ministros.");
+            return 0;
+        }
+        String name = StringArgumentType.getString(ctx, "jugador");
+        UUID target = resolveMember(g, name);
+        if (target == null) {
+            error(ctx, "Ese jugador no está en tu país.");
+            return 0;
+        }
+        if (target.equals(player.getUuid())) {
+            error(ctx, "El líder ya forma parte del gobierno; no puede ser ministro de sí mismo.");
+            return 0;
+        }
+        if (add) {
+            if (!mgr.addMinister(g, target)) {
+                error(ctx, name + " ya es ministro.");
+                return 0;
+            }
+            ctx.getSource().sendFeedback(() -> Text.literal(name + " es ahora ministro del gobierno de ")
+                    .append(groupLabel(g)).append(Text.literal(".")), false);
+            ServerPlayerEntity tp = server.getPlayerManager().getPlayer(target);
+            if (tp != null) {
+                tp.sendMessage(Text.literal("Has sido nombrado ministro de ").append(groupLabel(g))
+                        .append(Text.literal(". Ya puedes gestionar la economía del país.")).formatted(Formatting.GREEN));
+            }
+        } else {
+            if (!mgr.removeMinister(g, target)) {
+                error(ctx, name + " no es ministro.");
+                return 0;
+            }
+            ctx.getSource().sendFeedback(() -> Text.literal(name + " ya no es ministro."), false);
+            ServerPlayerEntity tp = server.getPlayerManager().getPlayer(target);
+            if (tp != null) {
+                tp.sendMessage(Text.literal("Has sido destituido como ministro de ").append(groupLabel(g))
+                        .append(Text.literal(".")));
+            }
+        }
+        return 1;
+    }
+
+    /** Lista el gobierno (líder + ministros) del país del jugador. */
+    private static int governmentList(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        Group g = GroupManager.get(ctx.getSource().getServer()).getByPlayer(player.getUuid());
+        if (g == null) {
+            error(ctx, "No perteneces a ningún país.");
+            return 0;
+        }
+        final Group fg = g;
+        ctx.getSource().sendFeedback(() -> {
+            MutableBuilder b = new MutableBuilder();
+            b.line(Text.literal("=== Gobierno de ").append(groupLabel(fg)).append(Text.literal(" ===")));
+            b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
+            if (fg.getMinisters().isEmpty()) {
+                b.line(Text.literal("Ministros: (ninguno). El líder los designa con /pais gobierno add <jugador>."));
+            } else {
+                StringBuilder names = new StringBuilder();
+                for (UUID m : fg.getMinisters()) {
+                    if (names.length() > 0) names.append(", ");
+                    names.append(fg.getMemberName(m));
+                }
+                b.line(Text.literal("Ministros (" + fg.getMinisters().size() + "): " + names));
+            }
+            b.line(Text.literal("El gobierno gestiona impuestos, licencias, dinero, obras, sueldos, partidos y la cuenta del país.")
+                    .formatted(Formatting.GRAY));
+            return b.build();
+        }, false);
+        return 1;
+    }
+
     private static int info(CommandContext<ServerCommandSource> ctx, String tagArg) throws CommandSyntaxException {
         GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
         Group g;
@@ -387,6 +474,14 @@ public final class GroupCommands {
             b.line(Text.literal("Nombre: " + fg.getName()));
             b.line(Text.literal("Color: " + fg.getColor().getName()));
             b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
+            if (!fg.getMinisters().isEmpty()) {
+                StringBuilder mins = new StringBuilder();
+                for (UUID m : fg.getMinisters()) {
+                    if (mins.length() > 0) mins.append(", ");
+                    mins.append(fg.getMemberName(m));
+                }
+                b.line(Text.literal("Ministros (" + fg.getMinisters().size() + "): " + mins));
+            }
             b.line(Text.literal("Miembros (" + fg.size() + "): " + String.join(", ", fg.getMemberNames().values())));
             var parties = com.realeconomy.party.PartyManager.get(ctx.getSource().getServer()).partiesOf(fg.getId());
             if (!parties.isEmpty()) {

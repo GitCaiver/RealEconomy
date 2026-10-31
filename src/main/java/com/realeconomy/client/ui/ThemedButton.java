@@ -27,16 +27,16 @@ public class ThemedButton extends ButtonWidget {
 
         if (!this.active) {
             // Oscurecer para indicar deshabilitado.
-            ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x99241A0E);
+            ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x99101016);
         } else if (isHovered() || isFocused()) {
-            // Resalte dorado translúcido al pasar/enfocar.
-            ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x33FFE9A8);
+            // Resalte turquesa translúcido al pasar/enfocar (acento neón).
+            ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x3335E0D8);
         }
 
         int color = this.active ? Theme.BUTTON_TEXT : Theme.BUTTON_TEXT_OFF;
         var tr = MinecraftClient.getInstance().textRenderer;
-        // Texto oscuro sobre botón claro: sin sombra para mejor contraste.
+        // Texto claro sobre botón oscuro: con sombra para destacar.
         int tx = x + (w - tr.getWidth(getMessage())) / 2;
-        ctx.drawText(tr, getMessage(), tx, y + (h - 8) / 2, color, false);
+        ctx.drawText(tr, getMessage(), tx, y + (h - 8) / 2, color, true);
     }
 }

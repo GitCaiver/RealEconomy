@@ -5,18 +5,21 @@ import com.realeconomy.client.ui.ThemedButton;
 import com.realeconomy.client.ui.ThemedScreen;
 import com.realeconomy.network.CurrencyEntry;
 import com.realeconomy.network.MarketActionPayload;
-import com.realeconomy.network.OfferView;
+import com.realeconomy.network.MarketOfferView;
 import com.realeconomy.network.OpenMarketPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-/** Interfaz de compra/venta de un mercado de país (para clientes), con el tema de madera. */
+/**
+ * Interfaz del mercado (parte 6, "solo vender"): lista lo que el mercado compra,
+ * con el precio actual, su tendencia (▲/▼) y un botón para vender.
+ */
 public class MarketScreen extends ThemedScreen {
 
     private static final int BG_W = 238;
-    private static final int BG_H = 184;
+    private static final int BG_H = 196;
     private static final int ROW_H = 26;
     private static final int MAX_ROWS = 5;
 
@@ -32,14 +35,11 @@ public class MarketScreen extends ThemedScreen {
         int cl = contentLeft();
         int count = Math.min(MAX_ROWS, data.offers().size());
         for (int i = 0; i < count; i++) {
-            OfferView o = data.offers().get(i);
-            int rowY = contentTop() + i * ROW_H;
-            boolean sell = o.type() == OfferView.SELL;
-            Text label = Text.literal(sell ? "Comprar" : "Vender");
-            this.addDrawableChild(ThemedButton.of(cl + contentWidth() - 60, rowY + 3, 58, 19, label, b -> {
-                int action = sell ? MarketActionPayload.BUY : MarketActionPayload.SELL;
+            MarketOfferView o = data.offers().get(i);
+            int rowY = contentTop() + 12 + i * ROW_H;
+            this.addDrawableChild(ThemedButton.of(cl + contentWidth() - 60, rowY + 3, 58, 19, Text.literal("Vender"), b -> {
                 int amount = hasShiftDown() ? 64 : 1;
-                ClientPlayNetworking.send(new MarketActionPayload(data.marketId(), o.index(), action, amount));
+                ClientPlayNetworking.send(new MarketActionPayload(data.marketId(), o.index(), MarketActionPayload.SELL, amount));
             }));
         }
     }
@@ -47,13 +47,15 @@ public class MarketScreen extends ThemedScreen {
     @Override
     protected void renderContent(DrawContext ctx, int mouseX, int mouseY, float delta) {
         int cl = contentLeft();
+        text(ctx, Text.literal("El mercado compra:").formatted(Formatting.ITALIC), cl, contentTop(), Theme.TEXT_DIM);
+
         int count = Math.min(MAX_ROWS, data.offers().size());
         for (int i = 0; i < count; i++) {
-            OfferView o = data.offers().get(i);
-            int rowY = contentTop() + i * ROW_H;
-            boolean sell = o.type() == OfferView.SELL;
+            MarketOfferView o = data.offers().get(i);
+            int rowY = contentTop() + 12 + i * ROW_H;
 
             Theme.slot(ctx, cl, rowY, contentWidth(), ROW_H - 3);
+            // Icono real del item de Minecraft, con su brillo de encantamiento (parte 7).
             ctx.drawItem(o.item(), cl + 4, rowY + 3);
 
             CurrencyEntry entry = ClientCurrencyStore.getEntry(o.currencyId());
@@ -63,18 +65,41 @@ public class MarketScreen extends ThemedScreen {
                 color = Formatting.GOLD;
             }
 
-            String title = (sell ? "Vende: " : "Compra: ") + o.item().getName().getString();
-            text(ctx, Text.literal(title), cl + 24, rowY + 3, Theme.TEXT);
-            text(ctx, Text.literal(o.price() + " ").append(Text.literal(money).formatted(color))
-                            .append(Text.literal(sell ? ("  (stock " + o.available() + ")") : ("  (puede " + o.available() + ")"))),
-                    cl + 24, rowY + 14, Theme.TEXT_DIM);
+            text(ctx, Text.literal(o.item().getName().getString()), cl + 24, rowY + 3, Theme.TEXT);
+
+            // Línea de precio: precio actual + moneda + flecha de tendencia + "(base N)".
+            net.minecraft.text.MutableText line = Text.literal(o.price() + " ").append(Text.literal(money).formatted(color));
+            line.append(trendText(o.trend()));
+            if (o.price() != o.basePrice()) {
+                line.append(Text.literal("  (base " + o.basePrice() + ")").formatted(Formatting.DARK_GRAY));
+            }
+            text(ctx, line, cl + 24, rowY + 14, Theme.TEXT_DIM);
         }
 
         if (data.offers().isEmpty()) {
-            text(ctx, "Este mercado no tiene ofertas.", cl, contentTop() + 6, Theme.TEXT_DIM);
+            text(ctx, "Este mercado aún no compra nada.", cl, contentTop() + 16, Theme.TEXT_DIM);
         } else {
-            text(ctx, Text.literal("Mantén Shift para x64").formatted(Formatting.ITALIC),
-                    cl, contentTop() + MAX_ROWS * ROW_H + 2, Theme.TEXT_DIM);
+            text(ctx, Text.literal("Mantén Shift para vender x64").formatted(Formatting.ITALIC),
+                    cl, contentTop() + 12 + MAX_ROWS * ROW_H + 2, Theme.TEXT_DIM);
+        }
+    }
+
+    private static Text trendText(int trend) {
+        return switch (trend) {
+            case MarketOfferView.UP -> Text.literal("  ▲").formatted(Formatting.GREEN);
+            case MarketOfferView.DOWN -> Text.literal("  ▼").formatted(Formatting.RED);
+            default -> Text.literal("  =").formatted(Formatting.GRAY);
+        };
+    }
+
+    @Override
+    protected void renderTooltips(DrawContext ctx, int mouseX, int mouseY) {
+        int cl = contentLeft();
+        int count = Math.min(MAX_ROWS, data.offers().size());
+        for (int i = 0; i < count; i++) {
+            MarketOfferView o = data.offers().get(i);
+            int rowY = contentTop() + 12 + i * ROW_H;
+            itemTooltip(ctx, o.item(), cl + 4, rowY + 3, mouseX, mouseY);
         }
     }
 

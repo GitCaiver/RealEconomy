@@ -13,6 +13,7 @@ import com.realeconomy.command.EcoAdminCommands;
 import com.realeconomy.command.GovernmentCommands;
 import com.realeconomy.command.GroupCommands;
 import com.realeconomy.command.JobCommands;
+import com.realeconomy.command.LicenseCommands;
 import com.realeconomy.command.LoanCommands;
 import com.realeconomy.command.MarketCommands;
 import com.realeconomy.command.PartyCommands;
@@ -79,6 +80,7 @@ public class RealEconomy implements ModInitializer {
             PublicWorksCommands.register(dispatcher);
             BuyerCommands.register(dispatcher);
             AuctionCommands.register(dispatcher);
+            LicenseCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
