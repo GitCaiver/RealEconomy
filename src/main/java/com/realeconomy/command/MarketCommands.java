@@ -60,8 +60,9 @@ public final class MarketCommands {
             ctx.getSource().sendError(Text.literal("No perteneces a ningún grupo."));
             return null;
         }
-        if (!g.isGovernment(player.getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar el mercado del país."));
+        if (!com.realeconomy.politics.Governance.isGovernment(player.getServer(), g, player.getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(player.getServer(), g)));
             return null;
         }
         return g;

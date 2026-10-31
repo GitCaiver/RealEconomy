@@ -49,16 +49,18 @@ public final class TownhallActions {
         double value = 0.0;
         boolean canPrint = false;
         int taxRate = 0;
+        String formName = "";
         if (country != null) {
             countryTag = country.getTag();
             countryColor = (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName();
+            formName = com.realeconomy.politics.PoliticalForms.displayName(country.getForm(), country.getSubtype());
             taxRate = FinanceManager.get(server).getTaxRate(country.getId());
             Currency cc = CurrencyManager.get(server).getByGroup(country.getId());
             if (cc != null) {
                 MonetaryManager mm = MonetaryManager.get(server);
                 circulation = mm.circulation(cc.getId());
                 value = mm.value(cc.getId());
-                canPrint = country.isGovernment(player.getUuid());
+                canPrint = com.realeconomy.politics.Governance.isGovernment(server, country, player.getUuid());
             }
         }
 
@@ -74,7 +76,8 @@ public final class TownhallActions {
                 circulation,
                 value,
                 canPrint,
-                taxRate
+                taxRate,
+                formName
         );
         ServerPlayNetworking.send(player, payload);
     }
@@ -127,7 +130,7 @@ public final class TownhallActions {
                     clm.heldExpiry(player.getUuid(), l.getId())));
         }
         ServerPlayNetworking.send(player, new com.realeconomy.network.OpenLicensesPayload(
-                country.isGovernment(player.getUuid()),
+                com.realeconomy.politics.Governance.isGovernment(server, country, player.getUuid()),
                 country.getTag(),
                 (country.getColor() == null ? Formatting.WHITE : country.getColor()).getName(),
                 views));
@@ -177,7 +180,7 @@ public final class TownhallActions {
         }
         FinanceManager fm = FinanceManager.get(server);
         var p = fm.getPolicy(country.getId());
-        boolean gov = country.isGovernment(player.getUuid());
+        boolean gov = com.realeconomy.politics.Governance.isGovernment(server, country, player.getUuid());
         ServerPlayNetworking.send(player, new com.realeconomy.network.OpenTaxPolicyPayload(
                 gov,
                 country.getTag(),
@@ -201,15 +204,17 @@ public final class TownhallActions {
         if (country == null) {
             return;
         }
-        if (!country.isGovernment(player.getUuid())) {
-            player.sendMessage(Text.literal("Solo el gobierno puede editar los impuestos.").formatted(Formatting.RED));
+        if (!com.realeconomy.politics.Governance.isGovernment(server, country, player.getUuid())) {
+            player.sendMessage(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(server, country)).formatted(Formatting.RED));
             return;
         }
         FinanceManager fm = FinanceManager.get(server);
         var p = fm.editPolicy(country.getId());
         int d = action.delta();
         switch (action.type()) {
-            case "renta" -> fm.setTaxRate(country.getId(), clamp(fm.getTaxRate(country.getId()) + d));
+            case "renta" -> fm.setTaxRate(country.getId(), Math.min(
+                    com.realeconomy.politics.LawEnforcement.maxTax(country), clamp(fm.getTaxRate(country.getId()) + d)));
             case "ventatienda" -> p.shopSalePercent = clamp(p.shopSalePercent + d);
             case "mercado" -> p.marketSalePercent = clamp(p.marketSalePercent + d);
             case "transferencia" -> p.transferPercent = clamp(p.transferPercent + d);
@@ -235,20 +240,29 @@ public final class TownhallActions {
     private static void setTax(ServerPlayerEntity player, int rate) {
         MinecraftServer server = player.getServer();
         Group g = GroupManager.get(server).getByPlayer(player.getUuid());
-        if (g == null || !g.isGovernment(player.getUuid())) {
-            player.sendMessage(Text.literal("Solo el gobierno (líder o ministros) puede ajustar los impuestos.").formatted(Formatting.RED));
+        if (g == null || !com.realeconomy.politics.Governance.isGovernment(server, g, player.getUuid())) {
+            player.sendMessage(Text.literal(g == null ? "No perteneces a ningún país."
+                    : com.realeconomy.politics.Governance.notGovernmentMessage(server, g)).formatted(Formatting.RED));
             return;
         }
-        FinanceManager.get(server).setTaxRate(g.getId(), rate);
-        player.sendMessage(Text.literal("Impuesto general del país ajustado al " + Math.max(0, Math.min(100, rate)) + "%.")
-                .formatted(Formatting.GREEN), false);
+        int cap = com.realeconomy.politics.LawEnforcement.maxTax(g);
+        int applied = Math.max(0, Math.min(cap, rate));
+        FinanceManager.get(server).setTaxRate(g.getId(), applied);
+        if (rate > cap) {
+            player.sendMessage(Text.literal("La ley limita el impuesto al " + cap + "%; ajustado a ese máximo.")
+                    .formatted(Formatting.YELLOW), false);
+        } else {
+            player.sendMessage(Text.literal("Impuesto general del país ajustado al " + applied + "%.")
+                    .formatted(Formatting.GREEN), false);
+        }
     }
 
     private static void printMoney(ServerPlayerEntity player, long amount) {
         MinecraftServer server = player.getServer();
         Group g = GroupManager.get(server).getByPlayer(player.getUuid());
-        if (g == null || !g.isGovernment(player.getUuid())) {
-            player.sendMessage(Text.literal("Solo el gobierno (líder o ministros) puede imprimir dinero.").formatted(Formatting.RED));
+        if (g == null || !com.realeconomy.politics.Governance.isGovernment(server, g, player.getUuid())) {
+            player.sendMessage(Text.literal(g == null ? "No perteneces a ningún país."
+                    : com.realeconomy.politics.Governance.notGovernmentMessage(server, g)).formatted(Formatting.RED));
             return;
         }
         Currency cc = CurrencyManager.get(server).getByGroup(g.getId());
@@ -258,6 +272,15 @@ public final class TownhallActions {
         }
         if (amount <= 0) {
             player.sendMessage(Text.literal("Indica una cantidad válida para imprimir.").formatted(Formatting.RED));
+            return;
+        }
+        String lawError = com.realeconomy.politics.LawEnforcement.whyCannotPrint(server, g, amount);
+        if (lawError != null) {
+            player.sendMessage(Text.literal(lawError).formatted(Formatting.RED));
+            return;
+        }
+        if (com.realeconomy.politics.LawEnforcement.isBigPrint(g, amount)) {
+            com.realeconomy.politics.BigDecisionManager.get(server).propose(server, g, "print", amount, player);
             return;
         }
         BalanceManager.get(server).add(FinanceManager.accountUuid(g), cc.getId(), amount);

@@ -51,8 +51,9 @@ public final class CurrencyCommands {
             ctx.getSource().sendError(Text.literal("No perteneces a ningún grupo."));
             return null;
         }
-        if (!g.isGovernment(player.getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar la moneda."));
+        if (!com.realeconomy.politics.Governance.isGovernment(player.getServer(), g, player.getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(player.getServer(), g)));
             return null;
         }
         return g;

@@ -1,5 +1,7 @@
 package com.realeconomy.group;
 
+import com.realeconomy.politics.FormSubtype;
+import com.realeconomy.politics.FormType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
@@ -26,6 +28,16 @@ public class Group {
     private final Map<UUID, String> members = new LinkedHashMap<>();
     /** Ministros: miembros designados por el líder que forman el gobierno junto a él. */
     private final Set<UUID> ministers = new LinkedHashSet<>();
+    /** Forma política del país (por defecto NINGUNA, para migrar países antiguos). */
+    private FormType form = FormType.NINGUNA;
+    /** Subtipo de la forma (solo dictadura/oligarquía); NONE en el resto. */
+    private FormSubtype subtype = FormSubtype.NONE;
+    /** Partido que gobierna actualmente (democracia/parlamentaria); null si no hay. Lo fijan las elecciones. */
+    private String governingPartyId = null;
+    /** Presidente actual (república); null si no hay. Lo fijan las elecciones. */
+    private UUID president = null;
+    /** Sucesor designado por el rey (monarquía absoluta); null si no hay. */
+    private UUID heir = null;
 
     public Group(String id, String name, String tag, Formatting color, UUID leader, String leaderName) {
         this.id = id;
@@ -83,6 +95,45 @@ public class Group {
 
     public boolean isLeader(UUID uuid) {
         return leader.equals(uuid);
+    }
+
+    // ---- Forma política ----
+
+    public FormType getForm() {
+        return form;
+    }
+
+    public FormSubtype getSubtype() {
+        return subtype;
+    }
+
+    public void setForm(FormType form, FormSubtype subtype) {
+        this.form = form == null ? FormType.NINGUNA : form;
+        this.subtype = (this.form.requiresSubtype() && subtype != null) ? subtype : FormSubtype.NONE;
+    }
+
+    public String getGoverningPartyId() {
+        return governingPartyId;
+    }
+
+    public void setGoverningPartyId(String id) {
+        this.governingPartyId = id;
+    }
+
+    public UUID getPresident() {
+        return president;
+    }
+
+    public void setPresident(UUID president) {
+        this.president = president;
+    }
+
+    public UUID getHeir() {
+        return heir;
+    }
+
+    public void setHeir(UUID heir) {
+        this.heir = heir;
     }
 
     // ---- Gobierno (líder + ministros) ----
@@ -166,6 +217,17 @@ public class Group {
         c.putString("tag", tag);
         c.putString("color", color.getName());
         c.putUuid("leader", leader);
+        c.putString("form", form.name());
+        c.putString("subtype", subtype.name());
+        if (governingPartyId != null) {
+            c.putString("governingParty", governingPartyId);
+        }
+        if (president != null) {
+            c.putUuid("president", president);
+        }
+        if (heir != null) {
+            c.putUuid("heir", heir);
+        }
         NbtList memberList = new NbtList();
         for (Map.Entry<UUID, String> e : members.entrySet()) {
             NbtCompound mc = new NbtCompound();
@@ -191,6 +253,19 @@ public class Group {
         Formatting f = Formatting.byName(c.getString("color"));
         g.color = (f == null || !f.isColor()) ? Formatting.WHITE : f;
         g.leader = c.getUuid("leader");
+        FormType ft = FormType.parse(c.getString("form"));
+        g.form = ft == null ? FormType.NINGUNA : ft;
+        FormSubtype st = FormSubtype.parse(c.getString("subtype"));
+        g.subtype = (g.form.requiresSubtype() && st != null) ? st : FormSubtype.NONE;
+        if (c.contains("governingParty")) {
+            g.governingPartyId = c.getString("governingParty");
+        }
+        if (c.contains("president")) {
+            g.president = c.getUuid("president");
+        }
+        if (c.contains("heir")) {
+            g.heir = c.getUuid("heir");
+        }
         NbtList memberList = c.getList("members", NbtElement.COMPOUND_TYPE);
         for (int i = 0; i < memberList.size(); i++) {
             NbtCompound mc = memberList.getCompound(i);

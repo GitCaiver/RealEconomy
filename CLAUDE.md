@@ -4,6 +4,8 @@ Mod de Minecraft **1.21.1** con **Fabric** que implementa una economía completa
 
 > **Nota de terminología (2ª tanda):** lo que antes eran "grupos" ahora son **PAÍSES**. Internamente las clases siguen llamándose `Group`/`GroupManager` (y el `PersistentState` sigue siendo `realeconomy_groups`) para **migrar los datos existentes sin perderlos**; de cara al jugador todo dice "país". El comando principal es `/pais` (alias `/paises`, `/grupo`, `/group`).
 
+> **REGLA DE PUBLICACIÓN LIMPIA (4ª tanda):** el mod se publica **limpio**: al instalarlo en un mundo nuevo **no hay ningún país, partido, moneda ni NPC creado**. Todo el estado vive en `PersistentState` por mundo y los NPCs los colocan comandos; **no se siembra ningún dato de prueba ni por defecto**. Cada servidor crea y configura sus países. (Los datos de ejemplo solo existen dentro de `/ecoadmin debug`, que es una herramienta de prueba, no estado del mundo.)
+
 - **Mod id:** `realeconomy`
 - **Loader:** Fabric
 - **Minecraft:** 1.21.1 · **Java:** 21
@@ -85,6 +87,114 @@ Código del tema en `com.realeconomy.client.ui`:
 5. **Licencias personalizadas** ✅ — el gobierno define licencias (nombre, precio, moneda, caducidad, permiso); los jugadores las compran en el ayuntamiento; sin la licencia correcta, la acción se bloquea. Ver *Licencias personalizadas (3ª tanda)*.
 6. **Mercado (NPC): solo vender** ✅ — el mercado solo compra (los jugadores venden); precio por oferta/demanda con tendencia (▲/▼). Ver *Mercado solo-venta (3ª tanda)*.
 7. **Tiendas: icono real del item** ✅ — las ofertas muestran el **icono real** del item de Minecraft con su **brillo de encantamiento**, y un **tooltip** al pasar el ratón (nombre, encantamientos, durabilidad). Ver *Tiendas: icono real del item (3ª tanda)*.
+
+## Cuarta tanda — Formas políticas (en curso)
+
+Añade **formas políticas** a los países. Orden: (1) elegir forma al crear, (2) estructura de gobierno por forma, (3) elecciones, (4) leyes. Todo **data-driven**, configurable y guardado en el mundo.
+
+### Parte 1 (4ª tanda) — Elegir forma política al crear el país — implementada
+
+Al crear un país se elige una **forma política**: Ninguna, Democracia, República, Monarquía absoluta, Monarquía parlamentaria, Dictadura, Oligarquía, Teocracia, Tecnocracia o Anarquía. **Dictadura** exige subtipo (totalitarismo / autocracia / junta militar) y **Oligarquía** también (aristocracia / plutocracia).
+
+- **Data-driven:** cada forma (y subtipo) se define en `config/realeconomy_forms.json`, generado con valores por defecto al arrancar y **editable sin tocar código**. Cada entrada tiene: `displayName`, `description`, `governmentMode` (quién gobierna), `howToPower` (cómo se llega al poder), `elections`, `partiesAllowed`, `partiesHavePower` y un bloque `laws` (impuesto máximo, si imprime dinero y cuánto, si hace falta votación, quién crea licencias, diezmo, tope de circulación, duración del mandato en domingos…). Si el archivo pierde entradas al actualizar el mod, se recompletan solas con los defaults. `/ecoadmin reload` recarga config **y** formas.
+- **Modelo** (`com.realeconomy.politics`): `FormType` (enum de las 10 formas, con `requiresSubtype()`/`subtypes()`/`key()`), `FormSubtype` (enum de los 5 subtipos + `NONE`), `GovernmentMode` (SINGLE_LEADER, ELECTED_PARTY, ELECTED_PRESIDENT, MONARCH, PARLIAMENTARY, JUNTA, COUNCIL, PLUTOCRACY, THEOCRACY, NONE; se consume en la parte 2), `Laws`, `FormDefinition`, `PoliticalForms` (carga/guarda el JSON y resuelve `get`/`displayName`), `CreationActions` (lógica de servidor de la GUI de creación). `Group` guarda `form`+`subtype` (NBT `form`/`subtype`, por defecto NINGUNA → **migra países antiguos**). `GroupManager.createGroup(..., form, subtype)` y `setForm(...)`.
+- **Interfaz de creación (tema Art Déco):** `/pais crear` abre `client.CountryCreateScreen` (siglas, nombre, color, forma y subtipo con ciclado, descripción de la forma y botón **Fundar país**). Payloads `OpenCountryCreatePayload` (S2C) y `CountryCreateActionPayload` (C2S); el servidor valida y crea.
+- **Se muestra** en el **ayuntamiento** (línea "Forma: …" al pie, desde `OpenTownhallPayload.formName`) y en la **ficha del país** (`/pais info` → "Forma política: …").
+- **Comandos** (`/pais`): `/pais crear` (GUI de creación con forma), `/pais forma` (ver forma y cómo se gobierna), `/pais forma <forma> [subtipo]` (el **líder** la cambia). El antiguo `/pais create <siglas> <color> [nombre]` sigue valiendo y crea con forma **Ninguna** (para elegir forma, usa `/pais crear` o `/pais forma`).
+
+> **Nota:** la estructura real de gobierno de cada forma (quién puede gestionar el país) y las elecciones/leyes se implementan en las partes 2-4; en la parte 1 la forma se elige, se guarda, se muestra y queda lista para que las siguientes partes la consulten.
+
+#### Cómo probar la parte 1 (4ª tanda)
+
+1. `./gradlew runClient` (o conéctate a `runServer`).
+2. **GUI:** `/pais crear` → se abre la interfaz Art Déco. Escribe siglas (2-4 letras) y nombre, cicla el color, cicla la **forma** (verás su descripción). Elige **Dictadura** → aparece el ciclador de **subtipo** (totalitarismo/autocracia/junta militar); igual con **Oligarquía**. Pulsa **Fundar país**.
+3. Comprueba `/pais info` → "Forma política: …" y, en un ayuntamiento (`/ayuntamientocrear` como op, clic derecho), la línea "Forma: …" al pie.
+4. **Por comando:** `/pais forma` muestra la forma actual y cómo se gobierna; `/pais forma teocracia`, `/pais forma dictadura junta_militar`, `/pais forma oligarquia plutocracia` (el líder la cambia).
+5. **Data-driven:** edita `config/realeconomy_forms.json` (p. ej. cambia el `displayName` o una ley de `democracia`) y `/ecoadmin reload` → se refleja al instante.
+6. **Limpio:** un mundo nuevo no trae ningún país; reinicia y comprueba que forma y subtipo persisten.
+
+### Parte 2 (4ª tanda) — Estructura de gobierno por forma — implementada
+
+Quién es "gobierno" (quién puede tocar impuestos, licencias, imprimir dinero, obras, sueldos, préstamos, moneda, mercado y la cuenta del país) **depende ahora de la forma política**. El resto solo ve. Lo centraliza `politics.Governance` (sustituye a `Group.isGovernment` en todos los comandos y botones de gobierno).
+
+| Forma (modo) | Quién gobierna | Cómo se llega |
+|---|---|---|
+| Ninguna (SINGLE_LEADER) | líder + ministros | fundar / designar ministros |
+| Dictadura·totalitarismo (SINGLE_LEADER) | líder (+ ministros) | sin elecciones; sin partidos |
+| Dictadura·autocracia (SINGLE_LEADER) | líder (+ ministros) | partidos sin poder |
+| Dictadura·junta militar (JUNTA) | líder + junta (ministros) | el líder compone la junta |
+| Oligarquía·aristocracia (COUNCIL) | líder + consejo (ministros) | designados por el consejo/líder |
+| Oligarquía·plutocracia (PLUTOCRACY) | los **N más ricos** del país | por riqueza (config `plutocracyGovernors`) |
+| Teocracia (THEOCRACY) | sumo sacerdote (líder) + clero (ministros) | designa clérigos |
+| Tecnocracia (COUNCIL) | líder + consejo de expertos (ministros) | designados |
+| Monarquía absoluta (MONARCH) | rey (líder) + ministros | hereditario: `/pais sucesor` + `/pais abdicar` |
+| Monarquía parlamentaria (PARLIAMENTARY) | **jefe de gobierno** del partido ganador (el rey NO toca la economía) | elecciones (parte 3) |
+| Democracia (ELECTED_PARTY) | **fundador del partido ganador** | elecciones (parte 3) |
+| República (ELECTED_PRESIDENT) | **presidente electo** | elecciones (parte 3) |
+| Anarquía (NONE) | **nadie** | — |
+
+- **Modelo:** `Group` gana `governingPartyId` (partido en el gobierno), `president` y `heir` (sucesor del rey), todos en NBT. `Governance.isGovernment(server, group, uuid)` resuelve según el `GovernmentMode` de la forma; `notGovernmentMessage(...)` da el **motivo claro** (anarquía, aún sin elecciones, solo los más ricos, etc.); `richestGovernors(...)` calcula la plutocracia desde el `BalanceManager`; `councilLabel(...)` adapta el nombre (junta/consejo/clero/ministros).
+- **Elecciones (formas electivas):** en democracia/parlamentaria/república **no hay gobierno** hasta que unas elecciones fijen el partido/presidente ganador (`governingPartyId`/`president`). Eso lo hace la **parte 3**; mientras tanto esas formas quedan sin gobierno económico (mensaje que remite a `/ecoadmin elecciones`).
+- **Monarquía:** `/pais sucesor <jugador>` (el rey designa heredero) y `/pais abdicar` (cede la corona al sucesor). En parlamentaria, el líder es el **rey** (jefe de Estado) y aparece así en `/pais gobierno`, sin poder económico.
+- **GUI:** el ayuntamiento pinta el botón **Imprimir** / barra de impuestos solo si el jugador **es gobierno según la forma** (reusa `canPrint`). `/pais gobierno` muestra la forma y a los gobernantes según el modo.
+
+> **Notas de diseño:** la "junta militar" y los "consejos" (aristocracia/tecnocracia/clero) se componen reutilizando el mecanismo de **ministros** (`/pais gobierno add/remove`): cualquier miembro del gobierno puede actuar (se simplifica el "decidir por mayoría" a "cualquiera del gobierno gestiona"). Los **NPCs compradores** (`/comprador`) siguen siendo solo del **líder** por diseño, independientemente de la forma.
+
+#### Cómo probar la parte 2 (4ª tanda)
+
+1. **Anarquía:** `/pais forma anarquia`. Intenta `/gobierno imprimir 100`, `/impuesto …`, `/tesoreria pagar …` → **bloqueado** con "en una anarquía nadie gobierna". Las vistas (`/pais info`, `/tesoreria ver`) siguen abiertas.
+2. **Plutocracia:** `/pais forma oligarquia plutocracia`. Da saldo a dos miembros (`/ecoadmin saldo set A ESP 500`, `… B 100`). `/pais gobierno` muestra al más rico como gobierno; solo **A** puede `/impuesto …`. Súbele el saldo a B por encima de A y verás que pasa a gobernar B. Ajusta `plutocracyGovernors` + `/ecoadmin reload` para que gobiernen varios.
+3. **Monarquía absoluta:** `/pais forma monarquia_absoluta`. `/pais sucesor Otro`, `/pais gobierno` (muestra rey y sucesor), `/pais abdicar` → el sucesor pasa a rey.
+4. **Teocracia / junta / aristocracia / tecnocracia:** `/pais forma teocracia` (etc.). El líder designa clero/junta/consejo con `/pais gobierno add <jugador>`; `/pais gobierno` usa la etiqueta correcta. Esos designados ya pueden gestionar.
+5. **Formas electivas:** `/pais forma democracia` → `/impuesto …` avisa de que no hay gobierno electo hasta las elecciones (parte 3).
+6. Reinicia: forma, sucesor, gobierno y designados persisten.
+
+### Parte 3 (4ª tanda) — Elecciones — implementada
+
+En las formas electivas (democracia, monarquía parlamentaria, república) se celebran **elecciones** entre los **partidos** del país. Duran **todo el día de elecciones** (por defecto el **domingo**, 00:00–23:59 en tiempo real; día y zona horaria configurables). Se vota en un **NPC urna** y al terminar se cuenta, se anuncia el resultado y entra el nuevo gobierno. Todo se guarda en el mundo.
+
+- **Modelo** (`com.realeconomy.election`): `Election` (ventana de tiempo, votos por partido, votantes; un voto por miembro), `ElectionRecord` (historial), `ElectionManager` (`PersistentState` `realeconomy_elections`: elecciones activas, `lastElectionDay` para no reabrir el mismo día, historial; `tick(server)` autolimitado a 1/seg). `UrnEntities` (NPC aldeano "🗳 Urna electoral", tag `realeconomy_urn`), `ElectionActions` (GUI de servidor).
+- **Calendario:** el `tick` mira la hora en la zona configurada; si es el **día de elecciones** y el país es electivo y **tiene partidos** y no se ha celebrado ya ese día, **abre** una elección que cierra al final del día. Al cerrar, cuenta los votos, aplica el resultado y lo **anuncia en el chat** a los miembros conectados (y al log).
+- **Resultado:** democracia/parlamentaria → el **partido ganador** pasa a `governingPartyId` (su fundador es jefe de gobierno/primer ministro); república → el fundador del partido ganador pasa a **presidente** (`president`). Sin votos → se mantiene el gobierno. Esto conecta con la **parte 2** (`Governance`), así que tras la elección el nuevo gobierno ya puede gestionar la economía.
+- **Votar:** clic derecho en una urna abre `client.ElectionScreen` (lista de partidos con botón **Votar**, estado y cuenta atrás). También `/elecciones votar <partido>` **junto a una urna**. Cada miembro vota **una vez**; solo miembros del país. Payloads `OpenElectionPayload` (S2C) y `ElectionVotePayload` (C2S).
+- **Urnas:** `/urnacrear` y `/urnaborrar` las coloca/quita el **gobierno del país o un op**.
+- **Comandos** (`/elecciones`, alias `/eleccion`): `/elecciones` (estado y partidos), `/elecciones votar <partido>` (junto a urna), `/elecciones historial [siglas]`.
+- **Pruebas sin esperar al domingo:** `/ecoadmin elecciones abrir` (fuerza abrir en todos los países electivos con partidos) y `/ecoadmin elecciones cerrar` (cuenta y aplica), solo op.
+- **Config:** `electionDayOfWeek` (SUNDAY), `electionZoneId` ("" = la del sistema), `urnRange` (6.0), `electionHistoryMax` (20).
+
+#### Cómo probar la parte 3 (4ª tanda)
+
+1. País electivo con partidos: `/pais crear` (elige **Democracia**) o `/pais forma democracia`. Crea moneda y un ayuntamiento (op); funda 2 partidos con 2 jugadores (`/partido crear azul Progresistas`, `/partido crear rojo Conservadores`).
+2. Coloca una urna: como gobierno/op, `/urnacrear` → "🗳 Urna electoral".
+3. **Abre elección de prueba:** `/ecoadmin elecciones abrir`. Verás el aviso "¡Elecciones abiertas en [TAG]!".
+4. **Vota:** clic derecho en la urna → GUI con los partidos → **Votar**. Con otros jugadores, vota distinto. Reintentar votar avisa "ya has votado". `/elecciones` muestra el estado.
+5. **Cierra:** `/ecoadmin elecciones cerrar` → se anuncia el ganador y, en democracia, el **fundador del partido ganador** ya puede `/impuesto …`, `/gobierno imprimir …`, etc. (parte 2). En **república** (`/pais forma republica`) el ganador pasa a **presidente**.
+6. **Historial:** `/elecciones historial`. Reinicia: elección activa, `lastElectionDay` e historial persisten.
+7. **Domingo real:** deja la forma electiva y espera al día configurado (o cambia `electionDayOfWeek`/`electionZoneId` + `/ecoadmin reload`): la elección se abre sola ese día y se cierra al acabar.
+
+### Parte 4 (4ª tanda) — Leyes — implementada
+
+Cada forma tiene sus **leyes** (bloque `laws` en `config/realeconomy_forms.json`): impuesto máximo, si se puede imprimir y cuánto, tope de circulación, si las decisiones grandes necesitan votación, y quién puede crear licencias. **Por encima de todas están las LEYES DEL SERVIDOR** (`serverLaws` en `config/realeconomy.json`): si una ley de un país contradice al servidor, **gana el servidor**. Los comandos y botones de gobierno **comprueban la forma y las leyes antes de actuar** y, si no se puede, dan el **motivo claro**.
+
+- **Modelo:** `politics.Laws` (POJO por forma), `config.ModConfig.ServerLaws` (límites globales), `politics.LawEnforcement` (resuelve el límite efectivo = el menor entre forma y servidor, y devuelve el motivo de bloqueo o `null`). Para "decisiones grandes": `politics.BigDecision` + `politics.BigDecisionManager` (`PersistentState` `realeconomy_decisions`).
+- **Leyes aplicadas:**
+  - **Impuesto máximo:** `/gobierno impuestos <n>` y la barra/botón "renta" del ayuntamiento no dejan pasar del máximo efectivo (p. ej. anarquía 0%, tecnocracia 60%); la barra se recorta sola y avisa.
+  - **Imprimir dinero:** `/gobierno imprimir` y el botón **Imprimir** comprueban `canPrintMoney` (forma) y `allowPrintMoney` (servidor), el **máximo por emisión** (`maxPrintPerAction`) y el **tope de circulación** (`maxCirculation`). Si no se permite, mensaje claro.
+  - **Licencias:** `/licencia crear|editar|borrar` comprueba `whoCreatesLicenses` (`GOVERNMENT`/`LEADER`/`NONE`) y `allowLicenses` del servidor.
+  - **Anarquía:** al no haber gobierno (parte 2), ya no se puede tocar cuenta, impuestos, licencias ni obras (bloqueo con motivo).
+- **Decisiones grandes con votación (repúblicas, `requiresVoteBigDecisions`):** si el gobierno intenta **subir el impuesto por encima de `bigTaxThreshold`** o **imprimir por encima de `bigPrintThreshold`**, no se aplica directamente: se crea una **propuesta** y se avisa a los **líderes de partido**, que votan con `/gobierno aprobar` o `/gobierno rechazar` (mayoría de los líderes actuales). Al aprobarse se aplica sola y se anuncia; al rechazarse se descarta. `/gobierno propuesta` muestra la pendiente. Persiste en el mundo y se limpia al disolver el país.
+- **Config (`serverLaws`):** `maxTaxPercent` (100), `allowPrintMoney` (true), `maxPrintPerAction` (-1), `maxCirculation` (-1), `allowLicenses` (true). `/ecoadmin reload` las recarga.
+
+> **Nota de alcance:** el tope de impuesto se aplica al **impuesto general ("renta")** y a la impresión de dinero, que son las palancas que citan las leyes; los **impuestos con nombre** (`/impuesto crear`) y los **tipos** (`/impuesto tipo …`) mantienen su propio rango 0-100. La votación de decisiones grandes se dispara desde los **comandos** `/gobierno`; el botón de la GUI aplica el tope duro pero no abre votación (usa el comando para el flujo con voto).
+
+#### Cómo probar la parte 4 (4ª tanda)
+
+1. **Tope de impuesto:** `/pais forma tecnocracia`. `/gobierno impuestos 80` → bloqueado ("la ley limita el impuesto al 60%"). `/gobierno impuestos 60` pasa. En el ayuntamiento, la barra no sube de 60.
+2. **No imprimir:** `/pais forma anarquia` → `/gobierno imprimir 100` dice que en una anarquía nadie gobierna. Edita `forms.json` poniendo `canPrintMoney=false` en otra forma + `/ecoadmin reload` → esa forma no puede imprimir.
+3. **Ley del servidor manda:** pon `serverLaws.maxTaxPercent = 30` en `config/realeconomy.json` + `/ecoadmin reload`. Aunque la forma permita 100, `/gobierno impuestos 50` se bloquea a 30. Igual con `allowPrintMoney=false` (nadie imprime) o `maxCirculation`.
+4. **Licencias por ley:** en una forma con `whoCreatesLicenses=LEADER`, un ministro no puede `/licencia crear` (solo el líder); con `NONE`, nadie.
+5. **Decisión grande con voto (república):** `/pais forma republica`, celebra una elección (parte 3) para tener presidente. Como presidente, `/gobierno impuestos 60` (supera el umbral 50) → se crea una **propuesta**; los **líderes de partido** reciben el aviso y votan `/gobierno aprobar`. Al llegar a la mayoría, se aplica. `/gobierno propuesta` muestra el recuento; `/gobierno rechazar` la tumba. Igual con `/gobierno imprimir 20000` (umbral de impresión).
+6. Reinicia: leyes (config), propuestas pendientes y todo lo demás persiste.
 
 ## Impuestos por tipo (3ª tanda, parte 4) — implementada
 

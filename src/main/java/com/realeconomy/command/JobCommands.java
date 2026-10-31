@@ -73,8 +73,10 @@ public final class JobCommands {
         if (g == null) {
             return 0;
         }
-        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede fijar los sueldos."));
+        if (!com.realeconomy.politics.Governance.isGovernment(ctx.getSource().getServer(), g,
+                ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(ctx.getSource().getServer(), g)));
             return 0;
         }
         String key = StringArgumentType.getString(ctx, "trabajo");

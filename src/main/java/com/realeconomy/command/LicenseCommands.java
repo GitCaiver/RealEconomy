@@ -85,8 +85,17 @@ public final class LicenseCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar las licencias."));
+        if (!com.realeconomy.politics.Governance.isGovernment(ctx.getSource().getServer(), g,
+                ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(ctx.getSource().getServer(), g)));
+            return null;
+        }
+        // Ley de la forma: quién puede crear/gestionar licencias (GOVERNMENT/LEADER/NONE) + leyes del servidor.
+        String lawError = com.realeconomy.politics.LawEnforcement.whyCannotManageLicenses(g,
+                ctx.getSource().getPlayerOrThrow().getUuid());
+        if (lawError != null) {
+            ctx.getSource().sendError(Text.literal(lawError));
             return null;
         }
         return g;

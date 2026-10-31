@@ -29,6 +29,26 @@ public final class GroupCommands {
     private static final SuggestionProvider<ServerCommandSource> COLOR_SUGGESTIONS =
             (context, builder) -> CommandSource.suggestMatching(ColorUtil.suggestions(), builder);
 
+    private static final SuggestionProvider<ServerCommandSource> FORM_SUGGESTIONS =
+            (context, builder) -> {
+                java.util.List<String> names = new java.util.ArrayList<>();
+                for (com.realeconomy.politics.FormType t : com.realeconomy.politics.FormType.values()) {
+                    names.add(t.name().toLowerCase(java.util.Locale.ROOT));
+                }
+                return CommandSource.suggestMatching(names, builder);
+            };
+
+    private static final SuggestionProvider<ServerCommandSource> SUBTYPE_SUGGESTIONS =
+            (context, builder) -> {
+                java.util.List<String> names = new java.util.ArrayList<>();
+                for (com.realeconomy.politics.FormSubtype s : com.realeconomy.politics.FormSubtype.values()) {
+                    if (s != com.realeconomy.politics.FormSubtype.NONE) {
+                        names.add(s.name().toLowerCase(java.util.Locale.ROOT));
+                    }
+                }
+                return CommandSource.suggestMatching(names, builder);
+            };
+
     private GroupCommands() {
     }
 
@@ -41,6 +61,16 @@ public final class GroupCommands {
                                         .executes(ctx -> create(ctx, null))
                                         .then(argument("nombre", StringArgumentType.greedyString())
                                                 .executes(ctx -> create(ctx, StringArgumentType.getString(ctx, "nombre")))))))
+                .then(literal("crear")
+                        .executes(GroupCommands::openCreate))
+                .then(literal("forma")
+                        .executes(GroupCommands::formShow)
+                        .then(argument("forma", StringArgumentType.word())
+                                .suggests(FORM_SUGGESTIONS)
+                                .executes(ctx -> setForm(ctx, null))
+                                .then(argument("subtipo", StringArgumentType.word())
+                                        .suggests(SUBTYPE_SUGGESTIONS)
+                                        .executes(ctx -> setForm(ctx, StringArgumentType.getString(ctx, "subtipo"))))))
                 .then(literal("invite")
                         .then(argument("jugador", EntityArgumentType.player())
                                 .executes(GroupCommands::invite)))
@@ -80,6 +110,11 @@ public final class GroupCommands {
                         .then(literal("remove")
                                 .then(argument("jugador", StringArgumentType.word())
                                         .executes(ctx -> setMinister(ctx, false)))))
+                .then(literal("sucesor")
+                        .then(argument("jugador", StringArgumentType.word())
+                                .executes(GroupCommands::setHeir)))
+                .then(literal("abdicar")
+                        .executes(GroupCommands::abdicate))
                 .then(literal("info")
                         .executes(ctx -> info(ctx, null))
                         .then(argument("siglas", StringArgumentType.word())
@@ -128,10 +163,81 @@ public final class GroupCommands {
         Group g = mgr.createGroup(name, tag, color, player);
 
         ctx.getSource().sendFeedback(() -> Text.literal("País creado: ")
-                .append(groupLabel(g)), true);
+                .append(groupLabel(g))
+                .append(Text.literal(" · forma: "
+                        + com.realeconomy.politics.PoliticalForms.displayName(g.getForm(), g.getSubtype())
+                        + " (cámbiala con /pais forma o funda con /pais crear)")), true);
         ctx.getSource().sendFeedback(() -> Text.literal("Moneda creada automáticamente: "
                 + g.getName() + " [" + g.getTag() + "] (moneda dorada por defecto). "
                 + "Cámbiale el nombre con /moneda nombre o el icono con /moneda icono <url>."), false);
+        return 1;
+    }
+
+    /** Abre la interfaz de creación de país (tema Art Déco) para elegir forma política. */
+    private static int openCreate(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        com.realeconomy.politics.CreationActions.openFor(player);
+        return 1;
+    }
+
+    private static int formShow(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        Group g = GroupManager.get(ctx.getSource().getServer()).getByPlayer(player.getUuid());
+        if (g == null) {
+            error(ctx, "No perteneces a ningún país.");
+            return 0;
+        }
+        var def = com.realeconomy.politics.PoliticalForms.get(g.getForm(), g.getSubtype());
+        ctx.getSource().sendFeedback(() -> {
+            MutableBuilder b = new MutableBuilder();
+            b.line(Text.literal("Forma política de ").append(groupLabel(g)).append(Text.literal(": ")
+                    .append(Text.literal(com.realeconomy.politics.PoliticalForms.displayName(g.getForm(), g.getSubtype()))
+                            .formatted(Formatting.GOLD))));
+            if (def.howToPower != null && !def.howToPower.isBlank()) {
+                b.line(Text.literal("Cómo se gobierna: " + def.howToPower).formatted(Formatting.GRAY));
+            }
+            b.line(Text.literal("El líder la cambia con /pais forma <forma> [subtipo].").formatted(Formatting.DARK_GRAY));
+            return b.build();
+        }, false);
+        return 1;
+    }
+
+    /** Cambia la forma política (solo el líder). */
+    private static int setForm(CommandContext<ServerCommandSource> ctx, String subtypeArg) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
+        Group g = mgr.getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            error(ctx, "Solo el líder puede cambiar la forma política del país.");
+            return 0;
+        }
+        com.realeconomy.politics.FormType form =
+                com.realeconomy.politics.FormType.parse(StringArgumentType.getString(ctx, "forma"));
+        if (form == null) {
+            error(ctx, "Forma no válida. Opciones: ninguna, democracia, republica, monarquia_absoluta, "
+                    + "monarquia_parlamentaria, dictadura, oligarquia, teocracia, tecnocracia, anarquia.");
+            return 0;
+        }
+        com.realeconomy.politics.FormSubtype subtype = com.realeconomy.politics.FormSubtype.NONE;
+        if (form.requiresSubtype()) {
+            subtype = subtypeArg == null ? null : com.realeconomy.politics.FormSubtype.parse(subtypeArg);
+            if (subtype == null || subtype == com.realeconomy.politics.FormSubtype.NONE || !form.subtypes().contains(subtype)) {
+                StringBuilder opts = new StringBuilder();
+                for (com.realeconomy.politics.FormSubtype s : form.subtypes()) {
+                    if (opts.length() > 0) opts.append(", ");
+                    opts.append(s.name().toLowerCase(java.util.Locale.ROOT));
+                }
+                error(ctx, form.displayName() + " requiere un subtipo: " + opts + ".");
+                return 0;
+            }
+        }
+        mgr.setForm(g, form, subtype);
+        com.realeconomy.politics.FormType ff = form;
+        com.realeconomy.politics.FormSubtype fs = subtype;
+        ctx.getSource().sendFeedback(() -> Text.literal("Forma política de ").append(groupLabel(g))
+                .append(Text.literal(" cambiada a "
+                        + com.realeconomy.politics.PoliticalForms.displayName(ff, fs) + "."))
+                .formatted(Formatting.GREEN), true);
         return 1;
     }
 
@@ -419,6 +525,57 @@ public final class GroupCommands {
         return 1;
     }
 
+    /** Monarquía absoluta: el rey (líder) designa a su sucesor. */
+    private static int setHeir(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
+        Group g = mgr.getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            error(ctx, "Solo el líder (rey) puede designar sucesor.");
+            return 0;
+        }
+        var mode = com.realeconomy.politics.PoliticalForms.get(g.getForm(), g.getSubtype()).mode();
+        if (mode != com.realeconomy.politics.GovernmentMode.MONARCH) {
+            error(ctx, "Designar sucesor es propio de una monarquía absoluta. Tu forma es "
+                    + com.realeconomy.politics.PoliticalForms.displayName(g.getForm(), g.getSubtype()) + ".");
+            return 0;
+        }
+        String name = StringArgumentType.getString(ctx, "jugador");
+        UUID target = resolveMember(g, name);
+        if (target == null) {
+            error(ctx, "Ese jugador no está en tu país.");
+            return 0;
+        }
+        g.setHeir(target);
+        mgr.markDirty();
+        ctx.getSource().sendFeedback(() -> Text.literal(name + " es ahora el sucesor del trono de ")
+                .append(groupLabel(g)).append(Text.literal(". Usa /pais abdicar para cederle la corona.")), true);
+        return 1;
+    }
+
+    /** Monarquía absoluta: el rey abdica y cede la corona a su sucesor designado. */
+    private static int abdicate(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        GroupManager mgr = GroupManager.get(ctx.getSource().getServer());
+        Group g = mgr.getByPlayer(player.getUuid());
+        if (g == null || !g.isLeader(player.getUuid())) {
+            error(ctx, "Solo el rey puede abdicar.");
+            return 0;
+        }
+        UUID heir = g.getHeir();
+        if (heir == null || !g.isMember(heir)) {
+            error(ctx, "No has designado un sucesor válido. Usa /pais sucesor <jugador> primero.");
+            return 0;
+        }
+        String heirName = g.getMemberName(heir);
+        mgr.setLeader(g, heir);
+        g.setHeir(null);
+        mgr.markDirty();
+        ctx.getSource().sendFeedback(() -> Text.literal("Has abdicado. " + heirName + " es el nuevo rey de ")
+                .append(groupLabel(g)).append(Text.literal(".")), true);
+        return 1;
+    }
+
     /** Lista el gobierno (líder + ministros) del país del jugador. */
     private static int governmentList(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
         ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
@@ -428,25 +585,84 @@ public final class GroupCommands {
             return 0;
         }
         final Group fg = g;
+        final MinecraftServer server = ctx.getSource().getServer();
         ctx.getSource().sendFeedback(() -> {
             MutableBuilder b = new MutableBuilder();
             b.line(Text.literal("=== Gobierno de ").append(groupLabel(fg)).append(Text.literal(" ===")));
-            b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
-            if (fg.getMinisters().isEmpty()) {
-                b.line(Text.literal("Ministros: (ninguno). El líder los designa con /pais gobierno add <jugador>."));
-            } else {
-                StringBuilder names = new StringBuilder();
-                for (UUID m : fg.getMinisters()) {
-                    if (names.length() > 0) names.append(", ");
-                    names.append(fg.getMemberName(m));
+            b.line(Text.literal("Forma política: "
+                    + com.realeconomy.politics.PoliticalForms.displayName(fg.getForm(), fg.getSubtype()))
+                    .formatted(Formatting.GOLD));
+            var mode = com.realeconomy.politics.PoliticalForms.get(fg.getForm(), fg.getSubtype()).mode();
+            switch (mode) {
+                case NONE -> b.line(Text.literal("Anarquía: nadie gobierna. No se puede gestionar la cuenta, impuestos ni licencias.")
+                        .formatted(Formatting.GRAY));
+                case PLUTOCRACY -> {
+                    var rich = com.realeconomy.politics.Governance.richestGovernors(server, fg);
+                    if (rich.isEmpty()) {
+                        b.line(Text.literal("Plutocracia: gobierna el más rico, pero nadie tiene saldo todavía."));
+                    } else {
+                        StringBuilder names = new StringBuilder();
+                        for (UUID u : rich) {
+                            if (names.length() > 0) names.append(", ");
+                            names.append(fg.getMemberName(u));
+                        }
+                        b.line(Text.literal("Gobierno (los más ricos): " + names));
+                    }
                 }
-                b.line(Text.literal("Ministros (" + fg.getMinisters().size() + "): " + names));
+                case ELECTED_PARTY, PARLIAMENTARY -> {
+                    if (mode == com.realeconomy.politics.GovernmentMode.PARLIAMENTARY) {
+                        b.line(Text.literal("Rey (jefe de Estado, sin poder económico): " + fg.getMemberName(fg.getLeader())));
+                    }
+                    String pid = fg.getGoverningPartyId();
+                    var party = pid == null ? null : com.realeconomy.party.PartyManager.get(server).getById(pid);
+                    if (party == null) {
+                        b.line(Text.literal("Sin gobierno electo. Hace falta una elección (domingo o /ecoadmin elecciones).")
+                                .formatted(Formatting.GRAY));
+                    } else {
+                        b.line(Text.literal("Partido en el gobierno: " + party.getName()
+                                + " · jefe de gobierno: " + fg.getMemberName(party.getLeader())));
+                    }
+                }
+                case ELECTED_PRESIDENT -> {
+                    if (fg.getPresident() == null) {
+                        b.line(Text.literal("Sin presidente. Hace falta una elección (domingo o /ecoadmin elecciones).")
+                                .formatted(Formatting.GRAY));
+                    } else {
+                        b.line(Text.literal("Presidente: " + fg.getMemberName(fg.getPresident())));
+                    }
+                }
+                case MONARCH -> {
+                    b.line(Text.literal("Rey: " + fg.getMemberName(fg.getLeader())));
+                    if (fg.getHeir() != null) {
+                        b.line(Text.literal("Sucesor designado: " + fg.getMemberName(fg.getHeir())));
+                    }
+                }
+                default -> b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
             }
-            b.line(Text.literal("El gobierno gestiona impuestos, licencias, dinero, obras, sueldos, partidos y la cuenta del país.")
+            // Consejo/junta/clero/ministros designados por el líder (cuando aplica).
+            if (mode != com.realeconomy.politics.GovernmentMode.NONE
+                    && mode != com.realeconomy.politics.GovernmentMode.PLUTOCRACY) {
+                String label = com.realeconomy.politics.Governance.councilLabel(fg);
+                if (fg.getMinisters().isEmpty()) {
+                    b.line(Text.literal(cap(label) + ": (ninguno). El líder los designa con /pais gobierno add <jugador>."));
+                } else {
+                    StringBuilder names = new StringBuilder();
+                    for (UUID m : fg.getMinisters()) {
+                        if (names.length() > 0) names.append(", ");
+                        names.append(fg.getMemberName(m));
+                    }
+                    b.line(Text.literal(cap(label) + " (" + fg.getMinisters().size() + "): " + names));
+                }
+            }
+            b.line(Text.literal("El gobierno gestiona impuestos, licencias, dinero, obras, sueldos y la cuenta del país.")
                     .formatted(Formatting.GRAY));
             return b.build();
         }, false);
         return 1;
+    }
+
+    private static String cap(String s) {
+        return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     private static int info(CommandContext<ServerCommandSource> ctx, String tagArg) throws CommandSyntaxException {
@@ -473,6 +689,8 @@ public final class GroupCommands {
             b.line(Text.literal("=== País ").append(groupLabel(fg)).append(Text.literal(" ===")));
             b.line(Text.literal("Nombre: " + fg.getName()));
             b.line(Text.literal("Color: " + fg.getColor().getName()));
+            b.line(Text.literal("Forma política: "
+                    + com.realeconomy.politics.PoliticalForms.displayName(fg.getForm(), fg.getSubtype())));
             b.line(Text.literal("Líder: " + fg.getMemberName(fg.getLeader())));
             if (!fg.getMinisters().isEmpty()) {
                 StringBuilder mins = new StringBuilder();

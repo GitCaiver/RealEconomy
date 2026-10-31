@@ -58,6 +58,7 @@ public class RealEconomy implements ModInitializer {
     @Override
     public void onInitialize() {
         ModConfig.load();
+        com.realeconomy.politics.PoliticalForms.load();
         ModItems.register();
         ModNetworking.registerPayloadTypes();
         ModNetworking.registerServerReceivers();
@@ -81,6 +82,7 @@ public class RealEconomy implements ModInitializer {
             BuyerCommands.register(dispatcher);
             AuctionCommands.register(dispatcher);
             LicenseCommands.register(dispatcher);
+            com.realeconomy.command.ElectionCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
@@ -99,6 +101,10 @@ public class RealEconomy implements ModInitializer {
 
         // Cierra subastas vencidas y refresca sus displays (autolimitado a 1/seg).
         ServerTickEvents.END_SERVER_TICK.register(AuctionService::tick);
+
+        // Abre/cierra elecciones según el día configurado (autolimitado a 1/seg).
+        ServerTickEvents.END_SERVER_TICK.register(server ->
+                com.realeconomy.election.ElectionManager.get(server).tick(server));
 
         // Trabajos: minería/tala/agricultura al romper bloques (la banca se cobra en BankActions).
         JobEvents.register();
@@ -128,6 +134,10 @@ public class RealEconomy implements ModInitializer {
                     }
                     if (BuyerEntities.isBuyer(villager)) {
                         BuyerActions.openForEntity(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                    if (com.realeconomy.election.UrnEntities.isUrn(villager)) {
+                        com.realeconomy.election.ElectionActions.openFor(serverPlayer);
                         return ActionResult.SUCCESS;
                     }
                 } catch (Exception e) {

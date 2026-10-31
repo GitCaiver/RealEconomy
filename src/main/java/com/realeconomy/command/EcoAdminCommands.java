@@ -63,6 +63,9 @@ public final class EcoAdminCommands {
                                                         .executes(ctx -> balanceSet(ctx, false)))))))
                 .then(literal("reload")
                         .executes(EcoAdminCommands::reload))
+                .then(literal("elecciones")
+                        .then(literal("abrir").executes(EcoAdminCommands::electionsOpen))
+                        .then(literal("cerrar").executes(EcoAdminCommands::electionsClose)))
                 .then(literal("debug")
                         .then(literal("banco").executes(ctx -> debug(ctx, "banco")))
                         .then(literal("ayuntamiento").executes(ctx -> debug(ctx, "ayuntamiento")))
@@ -136,9 +139,24 @@ public final class EcoAdminCommands {
                 new BuyerCategoryView("cultivos", 4, 0.85));
     }
 
+    private static int electionsOpen(CommandContext<ServerCommandSource> ctx) {
+        int n = com.realeconomy.election.ElectionManager.get(ctx.getSource().getServer())
+                .forceOpenAll(ctx.getSource().getServer());
+        ctx.getSource().sendFeedback(() -> Text.literal("Elecciones abiertas a la fuerza en " + n + " país(es)."), true);
+        return 1;
+    }
+
+    private static int electionsClose(CommandContext<ServerCommandSource> ctx) {
+        int n = com.realeconomy.election.ElectionManager.get(ctx.getSource().getServer())
+                .forceCloseAll(ctx.getSource().getServer());
+        ctx.getSource().sendFeedback(() -> Text.literal("Elecciones cerradas y contadas en " + n + " país(es)."), true);
+        return 1;
+    }
+
     private static int reload(CommandContext<ServerCommandSource> ctx) {
         ModConfig.load();
-        ctx.getSource().sendFeedback(() -> Text.literal("Config de RealEconomy recargada."), true);
+        com.realeconomy.politics.PoliticalForms.load();
+        ctx.getSource().sendFeedback(() -> Text.literal("Config y formas políticas de RealEconomy recargadas."), true);
         return 1;
     }
 

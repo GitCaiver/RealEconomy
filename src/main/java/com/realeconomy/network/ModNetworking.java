@@ -40,6 +40,10 @@ public final class ModNetworking {
         PayloadTypeRegistry.playC2S().register(TaxPolicyActionPayload.ID, TaxPolicyActionPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenLicensesPayload.ID, OpenLicensesPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(LicenseActionPayload.ID, LicenseActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenCountryCreatePayload.ID, OpenCountryCreatePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(CountryCreateActionPayload.ID, CountryCreateActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenElectionPayload.ID, OpenElectionPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(ElectionVotePayload.ID, ElectionVotePayload.CODEC);
     }
 
     /** Registra los receptores de paquetes del cliente (C2S). Llamar en la init común. */
@@ -58,6 +62,10 @@ public final class ModNetworking {
                 context.player().getServer().execute(() -> TownhallActions.handleTaxAction(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(LicenseActionPayload.ID, (payload, context) ->
                 context.player().getServer().execute(() -> TownhallActions.handleLicenseAction(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(CountryCreateActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> com.realeconomy.politics.CreationActions.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(ElectionVotePayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> com.realeconomy.election.ElectionActions.handleVote(context.player(), payload)));
     }
 
     /** Envía a un jugador toda la info de monedas (lista + iconos). */

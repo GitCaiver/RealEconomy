@@ -76,8 +76,10 @@ public final class LoanCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede gestionar los préstamos."));
+        if (!com.realeconomy.politics.Governance.isGovernment(ctx.getSource().getServer(), g,
+                ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(ctx.getSource().getServer(), g)));
             return null;
         }
         return g;

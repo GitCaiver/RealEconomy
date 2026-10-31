@@ -103,7 +103,14 @@ public class GroupManager extends PersistentState {
     // ---- Operaciones ----
 
     public Group createGroup(String name, String tag, Formatting color, ServerPlayerEntity leader) {
+        return createGroup(name, tag, color, leader,
+                com.realeconomy.politics.FormType.NINGUNA, com.realeconomy.politics.FormSubtype.NONE);
+    }
+
+    public Group createGroup(String name, String tag, Formatting color, ServerPlayerEntity leader,
+                             com.realeconomy.politics.FormType form, com.realeconomy.politics.FormSubtype subtype) {
         Group g = Group.create(name, normalizeTag(tag), color, leader.getUuid(), leader.getNameForScoreboard());
+        g.setForm(form, subtype);
         groups.put(g.getId(), g);
         playerIndex.put(leader.getUuid(), g.getId());
         syncTeam(g);
@@ -144,6 +151,8 @@ public class GroupManager extends PersistentState {
             com.realeconomy.gov.PublicWorksManager.get(server).removeCountry(g.getId());
             com.realeconomy.party.PartyManager.get(server).removeByCountry(g.getId());
             com.realeconomy.license.CustomLicenseManager.get(server).removeCountry(g.getId());
+            com.realeconomy.election.ElectionManager.get(server).removeCountry(g.getId());
+            com.realeconomy.politics.BigDecisionManager.get(server).removeCountry(g.getId());
         }
         groups.remove(g.getId());
         markDirty();
@@ -160,6 +169,13 @@ public class GroupManager extends PersistentState {
     public void removeMember(Group g, UUID uuid) {
         String name = g.getMemberName(uuid);
         g.removeMember(uuid);
+        // Si quien se va era presidente o sucesor, se limpia el cargo.
+        if (uuid.equals(g.getPresident())) {
+            g.setPresident(null);
+        }
+        if (uuid.equals(g.getHeir())) {
+            g.setHeir(null);
+        }
         playerIndex.remove(uuid);
         if (name != null) {
             removeFromTeam(name);
@@ -191,6 +207,23 @@ public class GroupManager extends PersistentState {
 
     public void setLeader(Group g, UUID uuid) {
         g.setLeader(uuid);
+        markDirty();
+    }
+
+    public void setForm(Group g, com.realeconomy.politics.FormType form, com.realeconomy.politics.FormSubtype subtype) {
+        g.setForm(form, subtype);
+        markDirty();
+    }
+
+    /** Fija el partido que gobierna (democracia/parlamentaria); null = sin gobierno. */
+    public void setGoverningParty(Group g, String partyId) {
+        g.setGoverningPartyId(partyId);
+        markDirty();
+    }
+
+    /** Fija el presidente (república); null = sin presidente. */
+    public void setPresident(Group g, UUID president) {
+        g.setPresident(president);
         markDirty();
     }
 

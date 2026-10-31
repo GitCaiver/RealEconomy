@@ -42,6 +42,9 @@ public final class GovernmentCommands {
                                 .executes(GovernmentCommands::burn)))
                 .then(literal("stats").executes(GovernmentCommands::stats))
                 .then(literal("historial").executes(GovernmentCommands::history))
+                .then(literal("propuesta").executes(GovernmentCommands::proposalShow))
+                .then(literal("aprobar").executes(ctx -> voteDecision(ctx, true)))
+                .then(literal("rechazar").executes(ctx -> voteDecision(ctx, false)))
                 .then(literal("impuestos")
                         .executes(GovernmentCommands::taxRateShow)
                         .then(literal("cobrar").executes(GovernmentCommands::taxRateCharge))
@@ -67,8 +70,10 @@ public final class GovernmentCommands {
         if (g == null) {
             return null;
         }
-        if (!g.isGovernment(ctx.getSource().getPlayerOrThrow().getUuid())) {
-            ctx.getSource().sendError(Text.literal("Solo el gobierno (líder o ministros) puede dirigir la política monetaria."));
+        if (!com.realeconomy.politics.Governance.isGovernment(ctx.getSource().getServer(), g,
+                ctx.getSource().getPlayerOrThrow().getUuid())) {
+            ctx.getSource().sendError(Text.literal(
+                    com.realeconomy.politics.Governance.notGovernmentMessage(ctx.getSource().getServer(), g)));
             return null;
         }
         return g;
@@ -103,6 +108,18 @@ public final class GovernmentCommands {
         }
         int amount = IntegerArgumentType.getInteger(ctx, "cantidad");
         var server = ctx.getSource().getServer();
+        // Leyes: ¿permite la forma/servidor imprimir esta cantidad?
+        String lawError = com.realeconomy.politics.LawEnforcement.whyCannotPrint(server, g, amount);
+        if (lawError != null) {
+            ctx.getSource().sendError(Text.literal(lawError));
+            return 0;
+        }
+        // Decisión grande que requiere votación de los líderes de partido.
+        if (com.realeconomy.politics.LawEnforcement.isBigPrint(g, amount)) {
+            com.realeconomy.politics.BigDecisionManager.get(server).propose(server, g, "print", amount,
+                    ctx.getSource().getPlayerOrThrow());
+            return 1;
+        }
         BalanceManager.get(server).add(FinanceManager.accountUuid(g), c.getId(), amount);
         MonetaryManager mm = MonetaryManager.get(server);
         mm.print(c.getId(), amount, ctx.getSource().getName());
@@ -184,7 +201,20 @@ public final class GovernmentCommands {
             return 0;
         }
         int rate = IntegerArgumentType.getInteger(ctx, "porcentaje");
-        FinanceManager.get(ctx.getSource().getServer()).setTaxRate(g.getId(), rate);
+        var server = ctx.getSource().getServer();
+        // Leyes: tope de impuesto de la forma/servidor.
+        String lawError = com.realeconomy.politics.LawEnforcement.whyCannotSetTax(g, rate);
+        if (lawError != null) {
+            ctx.getSource().sendError(Text.literal(lawError));
+            return 0;
+        }
+        // Decisión grande que requiere votación de los líderes de partido.
+        if (com.realeconomy.politics.LawEnforcement.isBigTax(g, rate)) {
+            com.realeconomy.politics.BigDecisionManager.get(server).propose(server, g, "tax", rate,
+                    ctx.getSource().getPlayerOrThrow());
+            return 1;
+        }
+        FinanceManager.get(server).setTaxRate(g.getId(), rate);
         ctx.getSource().sendFeedback(() -> Text.literal("Impuesto general de ").append(tag(g))
                 .append(Text.literal(" ajustado al " + rate + "%.")).formatted(Formatting.GREEN), true);
         return 1;
@@ -197,6 +227,44 @@ public final class GovernmentCommands {
         }
         FinanceManager.get(ctx.getSource().getServer()).chargeTaxRateNow(ctx.getSource().getServer(), g);
         ctx.getSource().sendFeedback(() -> Text.literal("Impuesto general cobrado ahora.").formatted(Formatting.GREEN), true);
+        return 1;
+    }
+
+    private static int proposalShow(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        Group g = memberCountry(ctx);
+        if (g == null) {
+            return 0;
+        }
+        var server = ctx.getSource().getServer();
+        com.realeconomy.politics.BigDecision d =
+                com.realeconomy.politics.BigDecisionManager.get(server).pendingFor(g.getId());
+        if (d == null) {
+            ctx.getSource().sendFeedback(() -> Text.literal("No hay ninguna propuesta pendiente en tu país."), false);
+            return 1;
+        }
+        ctx.getSource().sendFeedback(() -> Text.literal("Propuesta de " + d.proposerName + ": " + d.describe()
+                + ". Votos a favor: " + d.approvals.size() + ", en contra: " + d.rejections.size()
+                + ". Los líderes de partido votan con /gobierno aprobar o /gobierno rechazar."), false);
+        return 1;
+    }
+
+    private static int voteDecision(CommandContext<ServerCommandSource> ctx, boolean yes) throws CommandSyntaxException {
+        Group g = memberCountry(ctx);
+        if (g == null) {
+            return 0;
+        }
+        var server = ctx.getSource().getServer();
+        ServerPlayerEntity player = ctx.getSource().getPlayerOrThrow();
+        com.realeconomy.politics.BigDecisionManager mgr = com.realeconomy.politics.BigDecisionManager.get(server);
+        com.realeconomy.politics.BigDecisionManager.Vote r = yes ? mgr.approve(server, g, player) : mgr.reject(server, g, player);
+        switch (r) {
+            case NO_PROPOSAL -> ctx.getSource().sendError(Text.literal("No hay ninguna propuesta pendiente."));
+            case NOT_LEADER -> ctx.getSource().sendError(Text.literal("Solo los líderes de partido pueden votar las decisiones grandes."));
+            case ALREADY_VOTED -> ctx.getSource().sendError(Text.literal("Ya has votado esta propuesta."));
+            case COUNTED -> ctx.getSource().sendFeedback(() -> Text.literal("Voto registrado.").formatted(Formatting.GREEN), false);
+            case APPROVED -> ctx.getSource().sendFeedback(() -> Text.literal("Propuesta aprobada y aplicada.").formatted(Formatting.GREEN), false);
+            case REJECTED -> ctx.getSource().sendFeedback(() -> Text.literal("Propuesta rechazada.").formatted(Formatting.YELLOW), false);
+        }
         return 1;
     }
 

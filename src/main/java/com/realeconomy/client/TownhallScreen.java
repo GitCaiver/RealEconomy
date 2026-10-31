@@ -96,6 +96,13 @@ public class TownhallScreen extends ThemedScreen {
                 text(ctx, "(solo el gobierno gestiona)", cl, my + 52, Theme.TEXT_DIM);
             }
         }
+
+        // Forma política del país (parte 1), abajo del todo.
+        if (data.hasCountry() && data.formName() != null && !data.formName().isBlank()) {
+            int fy = top + bgH - 20;
+            Theme.separator(ctx, cl, fy - 6, contentWidth());
+            centered(ctx, Text.literal("Forma: " + data.formName()), left + bgW / 2, fy, Theme.TITLE);
+        }
     }
 
     public void refresh(OpenTownhallPayload data) {

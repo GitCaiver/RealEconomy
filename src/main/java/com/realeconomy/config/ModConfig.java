@@ -153,6 +153,40 @@ public class ModConfig {
     /** Segundos tras una venta en los que la tendencia se muestra a la baja (▼). */
     public int marketTrendWindowSeconds = 30;
 
+    // ---- Formas políticas (4ª tanda) ----
+    /** Plutocracia: cuántos de los miembros más ricos forman el gobierno. */
+    public int plutocracyGovernors = 1;
+
+    // ---- Leyes del servidor (4ª tanda, parte 4) ----
+    /**
+     * Leyes del servidor: límites y prohibiciones globales que están POR ENCIMA de las
+     * leyes de cualquier forma política. Si una ley del país contradice a estas, gana el servidor.
+     */
+    public ServerLaws serverLaws = new ServerLaws();
+
+    public static class ServerLaws {
+        /** Impuesto máximo (%) que permite el servidor, pase lo que pase. */
+        public int maxTaxPercent = 100;
+        /** Si el servidor permite imprimir dinero en absoluto. */
+        public boolean allowPrintMoney = true;
+        /** Máximo que se puede imprimir de una vez en todo el servidor (-1 = sin límite). */
+        public long maxPrintPerAction = -1;
+        /** Tope global de circulación de una moneda (-1 = sin límite). */
+        public long maxCirculation = -1;
+        /** Si el servidor permite crear licencias personalizadas. */
+        public boolean allowLicenses = true;
+    }
+
+    // ---- Elecciones (4ª tanda, parte 3) ----
+    /** Día de la semana en que se celebran las elecciones (MONDAY..SUNDAY). */
+    public String electionDayOfWeek = "SUNDAY";
+    /** Zona horaria para el día de elecciones (p. ej. "Europe/Madrid"); vacío = la del sistema. */
+    public String electionZoneId = "";
+    /** Distancia máxima (bloques) a la que se puede votar en una urna. */
+    public double urnRange = 6.0;
+    /** Máximo de entradas guardadas en el historial de elecciones por país. */
+    public int electionHistoryMax = 20;
+
     public static ModConfig get() {
         return INSTANCE;
     }

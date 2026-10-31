@@ -86,6 +86,20 @@ public class RealEconomyClient implements ClientModInitializer {
                     }
                 }));
 
+        // Abre la interfaz de creación de país (tema Art Déco).
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenCountryCreatePayload.ID, (payload, context) ->
+                context.client().execute(() -> context.client().setScreen(new CountryCreateScreen())));
+
+        // Abre o actualiza la interfaz de votación (urna electoral).
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenElectionPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof ElectionScreen es) {
+                        es.refresh(payload);
+                    } else {
+                        context.client().setScreen(new ElectionScreen(payload));
+                    }
+                }));
+
         // El dato de tooltip de la moneda se convierte en el componente que pinta el icono.
         TooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof CoinTooltipData coin) {
