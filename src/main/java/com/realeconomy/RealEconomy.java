@@ -83,6 +83,11 @@ public class RealEconomy implements ModInitializer {
             AuctionCommands.register(dispatcher);
             LicenseCommands.register(dispatcher);
             com.realeconomy.command.ElectionCommands.register(dispatcher);
+            com.realeconomy.command.TerritoryCommands.register(dispatcher);
+            com.realeconomy.command.ProvinceCommands.register(dispatcher);
+            com.realeconomy.command.WarCommands.register(dispatcher);
+            com.realeconomy.command.EmploymentCommands.register(dispatcher);
+            com.realeconomy.command.OwnerCommands.register(dispatcher);
         });
 
         // Al arrancar: garantiza que cada país tenga su moneda (migra países antiguos sin divisa).
@@ -106,8 +111,55 @@ public class RealEconomy implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server ->
                 com.realeconomy.election.ElectionManager.get(server).tick(server));
 
+        // Cierra guerras cuyo plazo venció (autolimitado a 1/seg).
+        ServerTickEvents.END_SERVER_TICK.register(server ->
+                com.realeconomy.war.WarManager.get(server).tick(server));
+
+        // Paga los sueldos de los aldeanos de MCA empleados (autolimitado a 1/seg).
+        ServerTickEvents.END_SERVER_TICK.register(server ->
+                com.realeconomy.employment.EmploymentManager.get(server).tick(server));
+
+        // Trabajo físico de los aldeanos de MCA (minar/talar/cosechar/guardia); por lotes y solo cerca de jugadores.
+        ServerTickEvents.END_SERVER_TICK.register(com.realeconomy.employment.VillagerWorker::tick);
+
+        // Combate según el modo de actitud de los aldeanos de MCA (agresivo/neutral); por lotes y cerca de jugadores.
+        ServerTickEvents.END_SERVER_TICK.register(com.realeconomy.attitude.AttitudeCombat::tick);
+
+        // Muerte de un jugador en una zona de guerra -> queda eliminado de esa guerra.
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
+            if (entity instanceof ServerPlayerEntity dead && dead.getServer() != null) {
+                com.realeconomy.war.WarManager.get(dead.getServer()).onPlayerDeath(dead.getServer(), dead);
+                return;
+            }
+            // Muerte de un aldeano de MCA: suelta su equipo (si la config lo permite) y limpia sus registros.
+            if (com.realeconomy.compat.mca.Mca.isMcaVillager(entity) && entity.getServer() != null) {
+                var server = entity.getServer();
+                if (ModConfig.get().villagerDropsEquipmentOnDeath) {
+                    com.realeconomy.attitude.OwnerActions.dropEquipment(entity);
+                }
+                com.realeconomy.attitude.AttitudeManager.get(server).remove(entity.getUuid());
+                com.realeconomy.employment.EmploymentManager.get(server).remove(entity.getUuid());
+                com.realeconomy.employment.LibrarianManager.get(server).remove(entity.getUuid());
+                com.realeconomy.war.WarManager.get(server).onVillagerDeath(entity.getUuid());
+            }
+        });
+
         // Trabajos: minería/tala/agricultura al romper bloques (la banca se cobra en BankActions).
         JobEvents.register();
+
+        // Protección opcional del terreno en zonas de guerra (warBreakStructures=false).
+        net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, be) -> {
+            if (!world.isClient && world instanceof net.minecraft.server.world.ServerWorld sw
+                    && com.realeconomy.war.WarProtection.isProtected(sw.getServer(), sw, pos)) {
+                if (player instanceof ServerPlayerEntity sp) {
+                    sp.sendMessage(net.minecraft.text.Text.literal(
+                            "Zona de guerra protegida: aquí no se puede romper el terreno.").formatted(
+                            net.minecraft.util.Formatting.RED), true);
+                }
+                return false;
+            }
+            return true;
+        });
 
         // Clic derecho en los NPC del banco / ayuntamiento -> abre su GUI.
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
@@ -116,6 +168,23 @@ public class RealEconomy implements ModInitializer {
             }
             if (entity instanceof VillagerEntity villager && player instanceof ServerPlayerEntity serverPlayer) {
                 try {
+                    // Dueño (familia) de un aldeano de MCA con equipo en la mano -> se lo equipa.
+                    if (com.realeconomy.compat.mca.Mca.isMcaVillager(villager)
+                            && com.realeconomy.attitude.OwnerActions.isGear(serverPlayer.getMainHandStack())
+                            && com.realeconomy.compat.mca.Mca.isOwner(villager, serverPlayer.getUuid())) {
+                        com.realeconomy.attitude.OwnerActions.equipHeld(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                    // Aldeano de MCA + agachado -> GUI de empleo de RealEconomy (clic normal = GUI propia de MCA).
+                    if (serverPlayer.isSneaking() && com.realeconomy.compat.mca.Mca.isMcaVillager(villager)) {
+                        com.realeconomy.employment.EmploymentActions.openFor(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
+                    // Clic normal sobre un librero de MCA empleado -> tienda de libros encantados.
+                    if (com.realeconomy.employment.LibrarianActions.isLibrarian(serverPlayer.getServer(), villager)) {
+                        com.realeconomy.employment.LibrarianActions.openFor(serverPlayer, villager);
+                        return ActionResult.SUCCESS;
+                    }
                     if (BankEntities.isBank(villager)) {
                         BankActions.openFor(serverPlayer);
                         return ActionResult.SUCCESS;

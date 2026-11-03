@@ -157,6 +157,139 @@ public class ModConfig {
     /** Plutocracia: cuántos de los miembros más ricos forman el gobierno. */
     public int plutocracyGovernors = 1;
 
+    // ---- Territorios y provincias (5ª tanda, prerrequisito) ----
+    /** Máximo de chunks que puede reclamar un país (-1 = sin límite). */
+    public int maxClaimsPerCountry = -1;
+
+    // ---- Compatibilidad con mods externos (5ª tanda) ----
+    /** Activa la integración con MCA Reborn (empleo/equipo/guerra de sus aldeanos). Solo surte efecto si MCA está instalado. */
+    public boolean enableMcaIntegration = true;
+    /** Activa la integración con Towns and Towers (que sus pueblos convivan con territorios/guerras). Solo si T&T está instalado. */
+    public boolean enableTownsIntegration = true;
+
+    // ---- Empleo de aldeanos de MCA (5ª tanda, parte 2) ----
+    /** Periodo de cobro por defecto del sueldo de un aldeano empleado (s/m/h/d). */
+    public String villagerWageDefaultPeriod = "1h";
+    /** Máximo de aldeanos de MCA que puede emplear un jugador (-1 = sin límite). */
+    public int maxEmployeesPerPlayer = -1;
+    /** Máximo de aldeanos de MCA empleados por un país (empleo público) (-1 = sin límite). */
+    public int maxEmployeesPerCountry = -1;
+    /** Radio máximo (bloques) de la zona de trabajo asignable a un aldeano. */
+    public int villagerWorkZoneMaxRadius = 32;
+
+    // ---- Comportamiento físico de los trabajos (5ª tanda, parte 3) ----
+    /** Solo trabajan si hay un jugador a esta distancia (bloques) y el chunk está cargado (rendimiento). */
+    public double villagerWorkActivationRange = 48.0;
+    /** Radio (bloques) alrededor del aldeano en el que busca el siguiente bloque a trabajar. */
+    public int villagerSearchRadius = 6;
+    /** Límite de bloques rotos por minuto por aldeano. */
+    public int villagerMaxBreaksPerMinute = 60;
+    /** Items que puede cargar un aldeano antes de volver a dejarlos en el cofre. */
+    public int villagerCarryCapacity = 128;
+    /** El aldeano gasta durabilidad de una herramienta si la tiene (de momento no implementado, reservado). */
+    public boolean villagerUsesToolDurability = false;
+    /** Bloques extra que el MINERO puede romper (además de cualquier mena, por tag c:ores). */
+    public java.util.List<String> minerExtraBlocks = new java.util.ArrayList<>(java.util.List.of(
+            "minecraft:stone", "minecraft:deepslate", "minecraft:dirt", "minecraft:gravel", "minecraft:sand"));
+    /** El LEÑADOR también rompe las hojas de los árboles. */
+    public boolean loggerBreakLeaves = false;
+    /** El LEÑADOR replanta un brote tras talar el árbol. */
+    public boolean loggerReplantSapling = true;
+    /** Producción extra del AGRICULTOR por ciclo aunque no haya cultivos reales (itemId -> cantidad). Vacío = solo cosecha real. */
+    public java.util.Map<String, Integer> farmerProduceTable = new java.util.LinkedHashMap<>();
+    /** El GUARDIA ataca a los monstruos hostiles que entren en su zona. */
+    public boolean guardAttackMonsters = true;
+
+    // ---- Librero (5ª tanda, parte 4) ----
+    /** Lista de libros encantados que puede vender un librero (editable). */
+    public java.util.List<BookEntry> librarianBooks = defaultLibrarianBooks();
+    /** Cuántos libros distintos pone a la venta cada librero por ciclo. */
+    public int librarianBooksPerCycle = 5;
+    /** Unidades de cada libro por ciclo. */
+    public int librarianUnitsPerBook = 3;
+    /** Horas (tiempo real) entre rotaciones de stock del librero. */
+    public int librarianRotationHours = 24;
+    /** Si el dinero de las ventas del librero va a la cuenta del país (true) o del empleador (false). */
+    public boolean librarianRevenueToCountry = false;
+
+    // ---- Equipo y actitud de aldeanos de MCA (5ª tanda, parte 6) ----
+    /** Si un aldeano de MCA suelta su equipo (armadura/armas) al morir. */
+    public boolean villagerDropsEquipmentOnDeath = false;
+    /** Fuera de una guerra, un aldeano AGRESIVO ataca también a jugadores/aldeanos (por defecto no, para evitar abusos). */
+    public boolean aggressiveAttacksPlayersOutsideWar = false;
+
+    /** Un libro vendible: encantamiento (id), nivel y precio en esmeraldas (se convierte a la moneda del país). */
+    public static class BookEntry {
+        public String enchant;
+        public int level;
+        public double price;
+
+        public BookEntry() {
+        }
+
+        public BookEntry(String enchant, int level, double price) {
+            this.enchant = enchant;
+            this.level = level;
+            this.price = price;
+        }
+    }
+
+    private static java.util.List<BookEntry> defaultLibrarianBooks() {
+        java.util.List<BookEntry> l = new java.util.ArrayList<>();
+        l.add(new BookEntry("minecraft:unbreaking", 3, 12));
+        l.add(new BookEntry("minecraft:mending", 1, 30));
+        l.add(new BookEntry("minecraft:protection", 4, 16));
+        l.add(new BookEntry("minecraft:respiration", 3, 10));
+        l.add(new BookEntry("minecraft:aqua_affinity", 1, 8));
+        l.add(new BookEntry("minecraft:efficiency", 5, 18));
+        l.add(new BookEntry("minecraft:fortune", 3, 28));
+        l.add(new BookEntry("minecraft:luck_of_the_sea", 3, 14));
+        l.add(new BookEntry("minecraft:thorns", 3, 12));
+        l.add(new BookEntry("minecraft:depth_strider", 3, 12));
+        l.add(new BookEntry("minecraft:feather_falling", 4, 14));
+        l.add(new BookEntry("minecraft:silk_touch", 1, 22));
+        l.add(new BookEntry("minecraft:lure", 3, 12));
+        l.add(new BookEntry("minecraft:sharpness", 5, 16));
+        l.add(new BookEntry("minecraft:smite", 5, 12));
+        l.add(new BookEntry("minecraft:looting", 3, 20));
+        l.add(new BookEntry("minecraft:sweeping_edge", 3, 14));
+        l.add(new BookEntry("minecraft:breach", 4, 18));
+        l.add(new BookEntry("minecraft:fire_aspect", 2, 14));
+        l.add(new BookEntry("minecraft:knockback", 2, 8));
+        l.add(new BookEntry("minecraft:density", 5, 18));
+        l.add(new BookEntry("minecraft:power", 5, 14));
+        l.add(new BookEntry("minecraft:punch", 2, 10));
+        l.add(new BookEntry("minecraft:flame", 1, 12));
+        l.add(new BookEntry("minecraft:infinity", 1, 22));
+        l.add(new BookEntry("minecraft:quick_charge", 3, 12));
+        l.add(new BookEntry("minecraft:piercing", 4, 12));
+        l.add(new BookEntry("minecraft:multishot", 1, 12));
+        l.add(new BookEntry("minecraft:impaling", 5, 14));
+        l.add(new BookEntry("minecraft:loyalty", 3, 14));
+        l.add(new BookEntry("minecraft:channeling", 1, 18));
+        l.add(new BookEntry("minecraft:riptide", 3, 14));
+        return l;
+    }
+
+    // ---- Guerras (5ª tanda, prerrequisito) ----
+    /** Duración por defecto de una guerra si no se indica (s/m/h/d). */
+    public String warDefaultDuration = "1d";
+    /** Duración mínima de una guerra. */
+    public String warMinDuration = "5m";
+    /** Máximo de guerras guardadas en el historial. */
+    public int warHistoryMax = 20;
+    /**
+     * Si las estructuras de Towns and Towers (y cualquier terreno) se pueden romper/modificar
+     * dentro de una zona de guerra. Por defecto sí, como el resto del terreno.
+     */
+    public boolean warBreakStructures = true;
+    /** Máximo de aldeanos de MCA que un jugador puede alistar en una guerra (-1 = sin límite). */
+    public int maxVillagersPerPlayerInWar = 5;
+    /** Máximo de aldeanos de MCA por bando (país) en una guerra (-1 = sin límite). */
+    public int maxVillagersPerCountryInWar = 20;
+    /** Si los aldeanos cuentan como participantes para ganar la guerra (por defecto no: la victoria es por jugadores). */
+    public boolean villagersCountForVictory = false;
+
     // ---- Leyes del servidor (4ª tanda, parte 4) ----
     /**
      * Leyes del servidor: límites y prohibiciones globales que están POR ENCIMA de las
@@ -175,6 +308,8 @@ public class ModConfig {
         public long maxCirculation = -1;
         /** Si el servidor permite crear licencias personalizadas. */
         public boolean allowLicenses = true;
+        /** Si el servidor permite declarar guerras en absoluto. */
+        public boolean allowWar = true;
     }
 
     // ---- Elecciones (4ª tanda, parte 3) ----

@@ -24,6 +24,12 @@ dependencies {
 
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // Nota (compat 5ª tanda): NO se declara dependencia de compilación de MCA Reborn. Su jar de
+    // Fabric usa ClassTweaker (archivo .classtweaker), que este Loom (1.11.8) no sabe parsear y
+    // rompe el setup de Minecraft. La integración con MCA se hace por REFLEXIÓN en runtime
+    // (com.realeconomy.compat.mca), protegida con FabricLoader.isModLoaded("mca"); así MCA es
+    // una dependencia totalmente opcional y el build no se acopla a su artefacto.
 }
 
 processResources {

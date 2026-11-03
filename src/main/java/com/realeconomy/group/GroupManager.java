@@ -153,6 +153,9 @@ public class GroupManager extends PersistentState {
             com.realeconomy.license.CustomLicenseManager.get(server).removeCountry(g.getId());
             com.realeconomy.election.ElectionManager.get(server).removeCountry(g.getId());
             com.realeconomy.politics.BigDecisionManager.get(server).removeCountry(g.getId());
+            com.realeconomy.war.WarManager.get(server).removeCountry(server, g.getId());
+            com.realeconomy.territory.TerritoryManager.get(server).removeCountry(g.getId());
+            com.realeconomy.employment.EmploymentManager.get(server).removeCountry(g.getId());
         }
         groups.remove(g.getId());
         markDirty();

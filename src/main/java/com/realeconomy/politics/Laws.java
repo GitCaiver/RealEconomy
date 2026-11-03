@@ -36,6 +36,9 @@ public class Laws {
     /** Duración del mandato en domingos (república/parlamentaria/presidente). */
     public int mandateSundays = 1;
 
+    /** Si esta forma política permite ejércitos / ir a la guerra. Una forma que lo prohíba bloquea /guerra. */
+    public boolean allowArmy = true;
+
     /** Si esta forma celebra elecciones (duplica {@link FormDefinition#elections} por comodidad). */
     public Laws copy() {
         Laws l = new Laws();
@@ -49,6 +52,7 @@ public class Laws {
         l.whoCreatesLicenses = whoCreatesLicenses;
         l.tithePercent = tithePercent;
         l.mandateSundays = mandateSundays;
+        l.allowArmy = allowArmy;
         return l;
     }
 }

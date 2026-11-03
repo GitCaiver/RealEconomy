@@ -44,6 +44,12 @@ public final class ModNetworking {
         PayloadTypeRegistry.playC2S().register(CountryCreateActionPayload.ID, CountryCreateActionPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenElectionPayload.ID, OpenElectionPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ElectionVotePayload.ID, ElectionVotePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenEmploymentPayload.ID, OpenEmploymentPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(EmploymentActionPayload.ID, EmploymentActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenLibrarianPayload.ID, OpenLibrarianPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(LibrarianActionPayload.ID, LibrarianActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenOwnerPayload.ID, OpenOwnerPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(OwnerActionPayload.ID, OwnerActionPayload.CODEC);
     }
 
     /** Registra los receptores de paquetes del cliente (C2S). Llamar en la init común. */
@@ -66,6 +72,12 @@ public final class ModNetworking {
                 context.player().getServer().execute(() -> com.realeconomy.politics.CreationActions.handle(context.player(), payload)));
         ServerPlayNetworking.registerGlobalReceiver(ElectionVotePayload.ID, (payload, context) ->
                 context.player().getServer().execute(() -> com.realeconomy.election.ElectionActions.handleVote(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(EmploymentActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> com.realeconomy.employment.EmploymentActions.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(LibrarianActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> com.realeconomy.employment.LibrarianActions.handleBuy(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(OwnerActionPayload.ID, (payload, context) ->
+                context.player().getServer().execute(() -> com.realeconomy.attitude.OwnerActions.handle(context.player(), payload)));
     }
 
     /** Envía a un jugador toda la info de monedas (lista + iconos). */

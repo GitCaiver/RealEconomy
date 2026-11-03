@@ -196,6 +196,220 @@ Cada forma tiene sus **leyes** (bloque `laws` en `config/realeconomy_forms.json`
 5. **Decisión grande con voto (república):** `/pais forma republica`, celebra una elección (parte 3) para tener presidente. Como presidente, `/gobierno impuestos 60` (supera el umbral 50) → se crea una **propuesta**; los **líderes de partido** reciben el aviso y votan `/gobierno aprobar`. Al llegar a la mayoría, se aplica. `/gobierno propuesta` muestra el recuento; `/gobierno rechazar` la tumba. Igual con `/gobierno imprimir 20000` (umbral de impresión).
 6. Reinicia: leyes (config), propuestas pendientes y todo lo demás persiste.
 
+## Quinta tanda — Compatibilidad con MCA Reborn y Towns & Towers (en curso)
+
+Hace RealEconomy compatible con dos mods **externos y opcionales**: **MCA Reborn** (aldeanos con familia, para darles trabajos y llevarlos a la guerra) y **Towns and Towers** (solo para que sus pueblos/estructuras convivan con territorios y guerras). RealEconomy **funciona igual sin ellos**. No se copia código ni texturas de esos mods, y los **aldeanos vanilla no se tocan** (lo nuevo solo afecta a los aldeanos de MCA).
+
+> **Prerrequisito:** la tanda necesita **territorios/provincias** y **guerras**, que no existían. Se construyen primero (abajo) como núcleo propio de RealEconomy, y las partes de MCA/T&T se apoyan en ellos.
+
+### Parte 0 (5ª tanda) — Comprobación previa — hecha
+
+- **Loader/versión de MCA Reborn:** MCA Reborn **sí tiene build de Fabric 1.21.1** (Modrinth `minecraft-comes-alive-reborn`, última `7.7.36+1.21.1`). El repo (`Luke100000/minecraft-comes-alive`, rama `1.21.1`) **no usa Architectury**: módulos `common/`+`fabric/`+`neoforge/`. ⇒ **RealEconomy se queda en Fabric 1.21.1**, no hace falta NeoForge ni Architectury.
+- **Decisiones tomadas:** (1) construir un **núcleo mínimo de territorios/provincias + guerras** antes de MCA/T&T; (2) enlazar con MCA por **`modCompileOnly` + guardas `FabricLoader.isModLoaded("mca")`** en runtime (dependencia opcional).
+- **Notas de integración de MCA** (de leer su código, rama 1.21.1; **Mojmap**, paquete `net.conczin.mca`, mod id `mca`): entidad `VillagerEntityMCA extends Villager` (tipos `mca:male_villager`/`mca:female_villager`; detectar con `instanceof`). Trabajos: `getVillagerBrain().assignJob(Chore, player)` (`Chore` = PROSPECT/HARVEST/CHOP/HUNT/FISH). Familia/dueño: `getRelationships().isMarriedTo(uuid)` / `getFamilyEntry().partner()/father()/mother()/streamParents()`. Guerra/seguir: `getVillagerBrain().setMoveState(MoveState.FOLLOW, player)` + profesión `ProfessionsMCA.GUARD`/`ARCHER`. Equipo: slots vanilla (`equipStack`/`getEquippedStack`), se renderiza. **MCA no tiene un modo pasivo/neutral/agresivo**, así que ese modo de actitud lo guarda y aplica **RealEconomy** por su cuenta.
+
+### Parte A (5ª tanda) — Territorios y provincias — implementada
+
+Posesión del terreno **por chunk**, por país y (opcionalmente) por **provincia**, en cualquier dimensión. Es la base para validar lugares de trabajo (deben estar en territorio propio o sin dueño) y para la **conquista** en guerras. Funciona con cualquier terreno lo genere quien lo genere (Towns & Towers incluido): solo depende de coordenadas de chunk; **no protege bloques de jugadores** por sí mismo (solo modela la propiedad).
+
+- **Modelo** (`com.realeconomy.territory`): `Claim` (país + provincia del chunk), `Province` (id, país, nombre, color; NBT), `TerritoryManager` (`PersistentState` `realeconomy_territory`): claims por dimensión (`dimId → chunkLong → Claim`) y provincias. Métodos clave: `ownerCountry(world,pos)`, `provinceAt(...)`, `canWorkAt(world,pos,countryId)` (sin dueño o país propio), `claim/unclaim`, `createProvince/removeProvince`, `setClaimCountry` y `transferProvince` (conquista), `removeCountry` (al disolver el país, enganchado en `GroupManager.disband`).
+- **Gobierno:** reclamar/abandonar y crear/borrar provincias es cosa del **gobierno** del país (usa `Governance`); las vistas son de cualquiera.
+- **Comandos** (`/territorio`, alias `/territory`): `reclamar [provincia]` (reclama el chunk donde estás; opcionalmente lo asigna a una provincia), `abandonar`, `info` (dueño del chunk actual), `mapa` (minimapa ASCII de 13×9 chunks alrededor, coloreado por país), `lista` (chunks del país y por provincia). Un chunk ya reclamado por otro país **no** se puede reclamar (se consigue en una guerra).
+- **Comandos** (`/provincia`, alias `/province`): `crear <nombre> [color]`, `borrar <nombre>` (sus chunks quedan en el país sin provincia), `color <nombre> <color>`, `lista`.
+- **Config:** `maxClaimsPerCountry` (-1 = sin límite).
+
+#### Cómo probar la parte A (5ª tanda)
+
+1. País con gobierno (partes 1-2 de la 2ª tanda). `/territorio info` donde estás → "sin dueño".
+2. **Provincia:** `/provincia crear Norte azul`. `/provincia lista` la muestra con 0 chunks.
+3. **Reclamar:** `/territorio reclamar Norte` → el chunk actual pasa a tu país (provincia Norte). Muévete a otro chunk y `/territorio reclamar` (sin provincia). `/territorio info`, `/territorio lista` y `/territorio mapa` reflejan lo reclamado (tu chunk = `¤`, reclamados = `■` con el color del país).
+4. **No pisar a otros:** con un 2º país, intenta `/territorio reclamar` en un chunk ya reclamado → bloqueado ("se consigue en una guerra").
+5. **Abandonar/borrar:** `/territorio abandonar` libera el chunk. `/provincia borrar Norte` → sus chunks quedan en el país sin provincia.
+6. **Límite:** pon `maxClaimsPerCountry: 2` + `/ecoadmin reload` → el 3er `reclamar` se bloquea.
+7. **Persistencia/limpieza:** reinicia (claims y provincias persisten). Disuelve el país (`/pais disband`) → sus claims y provincias desaparecen.
+
+### Parte B (5ª tanda) — Guerras — implementada
+
+Guerras **país contra país** por una **provincia** del defensor. La **zona de guerra** son los chunks de esa provincia (territorios de la parte A). La victoria se decide por **jugadores vivos** (eliminación), por **rendición** o por **tiempo**. Si gana el atacante, **conquista la provincia** (y su territorio pasa a su país). No depende de qué mod generó el terreno (Towns & Towers incluido): la zona es geométrica.
+
+- **Modelo** (`com.realeconomy.war`): `War` (atacante, defensor, provincia, inicio/fin, participantes por bando, eliminados, +conjuntos de aldeanos reservados para la parte 7; NBT) y `WarManager` (`PersistentState` `realeconomy_wars`: guerras activas + historial). Al declarar, se **alistan automáticamente** los miembros de cada país.
+- **Zona y eliminación:** `isInWarZone` = la posición está en un chunk de la provincia contestada. Al **morir** un participante **dentro de la zona** (evento `ServerLivingEntityEvents.AFTER_DEATH`), queda **eliminado** de esa guerra. Si un bando se queda sin jugadores vivos (habiendo tenido), gana el otro. **Los aldeanos NO cuentan** para la victoria por defecto (se añade con config en la parte 7).
+- **Fin:** `tick` (1/seg) cierra las guerras cuyo plazo venció → **gana el defensor** (el atacante no logró conquistar). Rendición/cancelación resuelven al instante. Al **disolver** un país en guerra, gana el otro bando. La conquista usa `TerritoryManager.transferProvince`. Historial acotado por `warHistoryMax`.
+- **Avisos:** declaración, bajas y resultado se anuncian **en el chat** a los miembros de ambos países y en el log.
+- **Leyes:** declarar exige ser **gobierno** (usa `Governance`) y que el servidor permita guerras (`serverLaws.allowWar`). (La prohibición de ejércitos por forma política se añade en la parte 7.)
+- **Comandos** (`/guerra`, alias `/war`): `declarar <siglasDefensor> <provincia> [duracion]` (gobierno atacante), `estado` (guerras de tu país) / `lista` (todas), `unirse` (apúntate al bando de tu país), `rendirse` (gobierno defensor concede → gana atacante), `cancelar` (gobierno atacante abandona → gana defensor), `historial`.
+- **Config:** `warDefaultDuration` (1d), `warMinDuration` (5m), `warHistoryMax` (20), `warBreakStructures` (true, si se pueden romper estructuras de T&T/terreno en zona de guerra; lo consume la parte 5), `serverLaws.allowWar` (true).
+
+#### Cómo probar la parte B (5ª tanda)
+
+1. Dos países con gobierno. El defensor crea una provincia y le reclama ≥1 chunk (parte A): `/provincia crear Frontera` + `/territorio reclamar Frontera`.
+2. **Declarar:** como gobierno del atacante, `/guerra declarar <SIGLAS_DEF> Frontera 10m` → aviso "¡GUERRA!" a ambos países. `/guerra` y `/guerra lista` muestran la guerra (vivos y tiempo restante).
+3. **Rendición:** como gobierno del defensor, `/guerra rendirse` → gana el atacante y la provincia Frontera pasa a su país (`/territorio info` en esos chunks lo confirma). `/guerra historial` lo registra.
+4. **Eliminación:** declara otra guerra; que un miembro del defensor entre en la zona (sus chunks) y muera allí → "ha caído… queda eliminado". Si cae el único defensor vivo, gana el atacante y conquista.
+5. **Cancelar:** `/guerra cancelar` (gobierno atacante) → gana el defensor, sin cambio de territorio.
+6. **Tiempo:** declara con `5m` (o baja `warMinDuration`) y espera a que venza → gana el defensor automáticamente.
+7. **Leyes:** pon `serverLaws.allowWar=false` + `/ecoadmin reload` → `/guerra declarar` se bloquea. Una anarquía no puede declarar (no hay gobierno).
+8. **Persistencia:** reinicia con una guerra activa → persiste (participantes, eliminados, plazo). Disuelve un país en guerra → gana el otro.
+
+### Parte 1 (5ª tanda) — Reglas de compatibilidad y detección — implementada
+
+Los dos mods son **dependencias opcionales**: RealEconomy funciona igual sin ellos. **No hay dependencia de compilación**: el jar de Fabric de MCA usa **ClassTweaker** (archivo `.classtweaker`), que el Loom de este proyecto (1.11.8) no sabe parsear y rompe el *setup* de Minecraft. Por eso la integración con MCA se hace **por reflexión en runtime**, y el build no se acopla a su artefacto. Los **aldeanos vanilla no se tocan nunca**.
+
+- **Detección** (`com.realeconomy.compat.ModCompat`): `isMcaLoaded()` / `isTownsLoaded()` (por `FabricLoader.isModLoaded`), con mod ids `mca` y `t_and_t`. `mcaEnabled()` / `townsEnabled()` = cargado **y** activado por config. Todo el código de integración se protege con estas comprobaciones.
+- **Fachada MCA** (`com.realeconomy.compat.mca.Mca`): reflexión perezosa con caché de métodos y avisos-una-vez si una firma no existe (otra versión de MCA → devuelve valor neutro, no rompe). `isMcaVillager(entity)` detecta un aldeano **vivo** de MCA por el id de su tipo (`mca:male_villager`/`mca:female_villager`), sin tocar clases de MCA (seguro aunque MCA no esté). Las llamadas a métodos **vanilla** heredados por el aldeano se hacen con tipos vanilla normales (no por reflexión). Las firmas reales de MCA (rama 1.21.1, paquete `net.conczin.mca`) se conocen por lectura de su código.
+- **Config:** `enableMcaIntegration` (true), `enableTownsIntegration` (true) — solo surten efecto si el mod correspondiente está instalado.
+- **Estado:** `/ecoadmin compat` (op) muestra si cada mod está instalado y activo.
+
+#### Cómo probar la parte 1 (5ª tanda)
+
+1. **Sin los mods:** arranca RealEconomy solo. `/ecoadmin compat` → "MCA Reborn: no instalado", "Towns and Towers: no instalado". Todo lo demás del mod funciona igual que antes (no hay regresiones).
+2. **Con MCA y/o T&T instalados:** `/ecoadmin compat` → "instalado y activo". Pon `enableMcaIntegration:false` + `/ecoadmin reload` → "instalado pero DESACTIVADO".
+3. El build compila y arranca con y sin esos mods; no se declara ninguna dependencia de compilación hacia ellos.
+
+### Parte 2 (5ª tanda) — Empleo de aldeanos de MCA — implementada
+
+Los aldeanos **de MCA** (no los vanilla) se pueden **emplear**. **Agáchate + clic derecho** sobre uno abre la GUI de empleo Art Déco (el clic derecho normal deja la GUI propia de MCA intacta). El empleado tiene **cartera propia** y **cobra un sueldo periódico en la moneda del país desde la cuenta del empleador**; si el empleador se queda sin saldo, el aldeano **deja de trabajar** hasta que vuelva a haber. Se puede **despedir**.
+
+- **Quién puede emplear** (`EmploymentActions.employerMode`): el **gobierno** del país → **empleo público** (paga la **cuenta del país**); o un **miembro con licencia de trabajo** → **empleo privado** (paga su **saldo**). La licencia se resuelve con el sistema de licencias personalizadas (`permits(country, player, TRABAJO)`): si el país no define licencia de trabajo, cualquier miembro puede emplear en privado; si la define, solo quien la tenga.
+- **Modelo** (`com.realeconomy.employment`): `VillagerJob` (minero/leñador/agricultor/guardia/librero), `EmployedVillager` (empleador, país, público/privado, trabajo, sueldo+periodo, `lastPaid`, **cartera**, activo, **zona de trabajo** = centro+radio+dimensión, **cofre** vinculado; NBT), `EmploymentManager` (`PersistentState` `realeconomy_employment`: `tick` paga 1/seg en tiempo real; marca inactivo si no hay fondos y avisa al empleador; limpia los empleos públicos al disolver el país).
+- **Detección de aldeano MCA** por id de tipo (`Mca.isMcaVillager`, parte 1), sin tocar clases de MCA cuando no está. El **comportamiento físico** de cada trabajo (picar, talar, cosechar, guardia, librero) es de las **partes 3-4**; esta parte establece la relación de empleo, el pago y la asignación de zona/cofre.
+- **GUI** (`client.EmploymentScreen`): nombre y estado del aldeano, cartera, trabajo (ciclable), sueldo y periodo (campos de texto), botones **Contratar/Actualizar** y **Despedir**. Payloads `OpenEmploymentPayload` (S2C, por UUID del aldeano) y `EmploymentActionPayload` (C2S). Quien no es el empleador ni gobierno lo ve en solo lectura.
+- **Comandos** (`/empleo`, alias `/jobsmca`): `info` (del aldeano empleado más cercano), `lista` (tus empleados), `despedir`, `zona <radio>` (fija la zona de trabajo = tu posición + radio), `cofre` (vincula el contenedor al que miras). Obras públicas podrán contratar aldeanos de MCA en partes siguientes.
+- **Config:** `villagerWageDefaultPeriod` (1h), `maxEmployeesPerPlayer` (-1), `maxEmployeesPerCountry` (-1), `villagerWorkZoneMaxRadius` (32).
+
+#### Cómo probar la parte 2 (5ª tanda)
+
+> Requiere **MCA Reborn** instalado (es una función de sus aldeanos). Sin MCA no hay aldeanos de MCA; para ver solo la interfaz usa `/ecoadmin debug empleo`.
+
+1. **UI sin MCA:** `/ecoadmin debug empleo` → abre la GUI de empleo Art Déco con un aldeano de ejemplo (cicla trabajo, escribe sueldo/periodo). No contrata nada real.
+2. **Con MCA:** ten país con moneda y fondos (gobierno) o una licencia de trabajo. Haz que aparezca un aldeano de MCA. **Agáchate y clic derecho** sobre él → GUI de empleo. Elige **Minero**, sueldo `10`, periodo `30s`, **Contratar**. Mensaje de confirmación (paga el país o pagas tú).
+3. **Sueldo:** espera los periodos → la cartera del aldeano sube y la cuenta/tu saldo baja (`/empleo info` junto a él). Vacía la cuenta/saldo → "sin saldo… deja de trabajar"; repón fondos → vuelve a cobrar.
+4. **Zona y cofre:** junto al aldeano, `/empleo zona 8` (fija zona aquí) y mirando a un cofre `/empleo cofre`. `/empleo info` muestra zona y cofre.
+5. **Gestión:** `/empleo lista`, `/empleo despedir` (o botón Despedir). Clic normal (sin agacharse) sigue abriendo la GUI propia de MCA. Reinicia: los empleos persisten. Disuelve el país → sus empleos públicos terminan.
+
+### Parte 3 (5ª tanda) — Comportamiento físico de los trabajos — implementada
+
+Los aldeanos empleados **trabajan de verdad** en su zona. Se implementa con un bucle propio del servidor (`employment.VillagerWorker`, enganchado al tick) que usa **API vanilla** (el aldeano de MCA es un `VillagerEntity`), **sin tocar la IA interna de MCA** (robusto ante cambios de versión). Se ejecuta **por lotes** y **solo cerca de jugadores / en chunks cargados** (rendimiento: solo se procesan aldeanos dentro de `villagerWorkActivationRange` de algún jugador conectado; nunca se simula en chunks descargados). Estado de trabajo (objetivo, progreso de rotura, carga) **transitorio**.
+
+- **Minero:** busca el bloque minable más cercano de su zona, se acerca, **pica con animación y grietas** (tiempo según la dureza del bloque), se queda los drops (con la herramienta adecuada para que caigan) y, al llenar la carga, va al **cofre vinculado** y los deposita. Rompe cualquier **mena** (tag `c:ores`) y los bloques de `minerExtraBlocks` (piedra, deepslate, tierra, grava, arena por defecto).
+- **Leñador:** rompe los **troncos** (tag `minecraft:logs`) de su zona (y las hojas si `loggerBreakLeaves`), **replanta un brote** del árbol talado sobre tierra/hierba si `loggerReplantSapling`, y deposita la madera.
+- **Agricultor:** **cosecha** los cultivos maduros (`CropBlock`) de su zona y los **replanta** a edad 0; deposita la comida. (`farmerProduceTable` queda como gancho para producción extra configurable.)
+- **Guardia:** se queda en su **puesto** (centro de la zona) y **ataca a los monstruos hostiles** (`HostileEntity`) que entren en su radio (ataque vanilla con enfriamiento); **nunca** ataca jugadores ni aldeanos fuera de una guerra. El equipo (parte 6) le sube el daño.
+- **Seguridad:** solo trabaja **dentro de la zona asignada** y **solo en territorio propio o sin dueño** (`TerritoryManager.canWorkAt`, nunca en otro país); **nunca** rompe contenedores/bloques con entidad ni el cofre vinculado; respeta `villagerMaxBreaksPerMinute`. (La detección de "bloque colocado por jugador" se aproxima limitando a bloques naturales de la lista/tags; no hay registro de colocaciones.)
+- **Config:** `villagerWorkActivationRange` (48), `villagerSearchRadius` (6), `villagerMaxBreaksPerMinute` (60), `villagerCarryCapacity` (128), `minerExtraBlocks`, `loggerBreakLeaves` (false), `loggerReplantSapling` (true), `farmerProduceTable` ({}), `guardAttackMonsters` (true), `villagerUsesToolDurability` (false, reservado).
+
+> **Nota:** el movimiento usa la navegación vanilla; la IA propia de MCA puede competir por el control y hacer el desplazamiento algo irregular, pero la lógica de trabajo (picar/recoger/depositar/guardar) actúa correctamente cuando el aldeano está en rango. No se altera la IA de MCA a propósito.
+
+#### Cómo probar la parte 3 (5ª tanda)
+
+> Requiere **MCA Reborn**. Emplea un aldeano (parte 2) y asígnale zona y cofre.
+
+1. **Minero:** emplea un aldeano de MCA como **Minero** cerca de una zona con piedra/menas. `/empleo zona 8` sobre la veta y `/empleo cofre` mirando a un cofre cercano. Quédate cerca → el aldeano va a los bloques, los pica (se ven las grietas y el brazo), y al llenarse vuelve y deja los items en el cofre.
+2. **Leñador:** zona sobre un bosque → tala troncos, replanta brotes y deposita la madera.
+3. **Agricultor:** zona sobre un campo de trigo maduro → cosecha y replanta; la comida acaba en el cofre.
+4. **Guardia:** zona en un punto; de noche, un zombi que entre en el radio es atacado. No ataca a jugadores/aldeanos.
+5. **Seguridad:** reclama con otro país un chunk dentro de la zona del minero → deja de romper ahí. Pon un cofre dentro de la zona → no lo rompe. Baja `villagerMaxBreaksPerMinute` a 5 → se nota el límite.
+6. **Rendimiento:** aléjate >48 bloques → el aldeano deja de procesar trabajo (y retoma al volver). Sin fondos (parte 2) el aldeano para del todo.
+
+### Parte 4 (5ª tanda) — Librero (venta de libros encantados) — implementada
+
+Un aldeano de MCA empleado como **Librero** vende **libros encantados** a los jugadores. **Clic derecho normal** sobre él abre su tienda de libros Art Déco (el clic normal, reservado para el cliente; agáchate + clic sigue siendo la gestión del empleo). Los libros salen de una **lista configurable** (32 por defecto, de Irrompibilidad III a Propulsión acuática III) y el **stock rota cada 24 h** (tiempo real): cada librero pone a la venta N libros al azar con unidades limitadas por ciclo; se guarda cuándo toca la próxima rotación.
+
+- **Precio:** se define en el config en **esmeraldas** y se convierte a la **moneda del país** del librero con el **valor actual** de la moneda (inflación/devaluación, `MonetaryManager.coinsForEmeralds`).
+- **Pago:** se cobra del saldo del comprador; el dinero va a la **cuenta del empleador** del librero (o a la **cuenta del país** si `librarianRevenueToCountry`). Se aplica el **impuesto de venta de tienda** del país (`shopSalePercent`): el corte va a la cuenta del país y el resto al recaudador.
+- **Icono real + tooltip:** cada libro viaja como `ItemStack` completo (`ItemStack.OPTIONAL_PACKET_CODEC`), así que la GUI pinta el **libro encantado real con su brillo** y su **tooltip** (encantamiento y nivel) al pasar el ratón.
+- **Modelo** (`com.realeconomy.employment`): `LibrarianManager` (`PersistentState` `realeconomy_librarian`: stock por aldeano + `nextRotation`; `buildBook` crea el libro resolviendo el encantamiento por id en el registro dinámico, y **devuelve null si el id no existe** → ese libro se omite sin romper nada), `LibrarianActions` (abre la GUI y procesa la compra). `config.ModConfig.BookEntry` define cada libro (encantamiento, nivel, precio).
+- **GUI** (`client.LibrarianScreen`): filas con icono+nombre del encantamiento, precio en monedas, unidades y botón **Comprar**; cuenta atrás para el cambio de stock. Payloads `OpenLibrarianPayload` (S2C, con los `ItemStack`) y `LibrarianActionPayload` (C2S).
+- **Config:** `librarianBooks` (lista editable de 32), `librarianBooksPerCycle` (5), `librarianUnitsPerBook` (3), `librarianRotationHours` (24), `librarianRevenueToCountry` (false).
+
+#### Cómo probar la parte 4 (5ª tanda)
+
+1. **UI sin MCA:** `/ecoadmin debug librero` → GUI del librero con 5 libros de ejemplo (icono real, brillo, tooltip, precio en tu moneda si tienes país).
+2. **Con MCA:** emplea un aldeano como **Librero** (parte 2, agáchate+clic → Contratar). Luego, **clic derecho normal** sobre él → tienda de libros. Compra uno con saldo suficiente → recibes el libro encantado y se cobra en tu moneda; la unidad baja. Sin saldo → aviso.
+3. **Rotación:** baja `librarianRotationHours` a 0 (o espera) + `/ecoadmin reload`; al reabrir, el stock cambia. **Impuesto:** pon `ventatienda` (`/impuesto tipo ventatienda 10`) → parte del pago va a la cuenta del país.
+4. **Recaudación:** por defecto el dinero va al empleador; pon `librarianRevenueToCountry:true` + reload → va a la cuenta del país.
+5. Reinicia: el stock y la fecha de rotación persisten.
+
+### Parte 5 (5ª tanda) — Towns and Towers (territorios y guerras) — implementada
+
+Towns and Towers es un mod de **estructuras/pueblos**. RealEconomy **no toca nada suyo**: ni sus aldeanos, ni sus estructuras, ni les da trabajos/monedas, ni inyecta loot. Lo único que se garantiza es que sus pueblos **conviven** con territorios y guerras.
+
+- **Agnóstico al terreno:** los territorios (parte A) y las guerras (parte B) trabajan **solo con coordenadas de chunk/provincia**, nunca inspeccionan qué mod generó el bloque ni el tipo de estructura. Por eso un pueblo de T&T puede quedar dentro de una provincia, y esa provincia se **reclama, amplía y conquista** con total normalidad, igual que cualquier terreno. No hay ningún caso especial para T&T que pueda fallar con sus estructuras.
+- **Romper estructuras en guerra** (`warBreakStructures`, por defecto **true**): por defecto el terreno y las estructuras (T&T incluidas) se pueden romper/modificar con normalidad dentro de una zona de guerra. Si se pone en **false**, `war.WarProtection` + un `PlayerBlockBreakEvents.BEFORE` **impiden romper cualquier bloque dentro de una zona de guerra activa** (y el trabajador aldeano tampoco rompe ahí). No depende de qué mod hizo el bloque: protege toda la zona.
+- **Detección:** `ModCompat.isTownsLoaded()` (mod id `t_and_t`) y `enableTownsIntegration`; estado en `/ecoadmin compat`.
+
+#### Cómo probar la parte 5 (5ª tanda)
+
+1. **Con T&T instalado:** genera mundo nuevo; localiza un pueblo de T&T (`/locate structure towns_and_towers:...`). Sus aldeanos y estructuras siguen **exactamente igual** (no tienen trabajos, ni monedas, ni GUIs de RealEconomy).
+2. **Territorio:** ve a un pueblo de T&T y `/provincia crear Pueblo` + `/territorio reclamar Pueblo` en sus chunks → se reclaman sin problema. `/territorio mapa` los muestra.
+3. **Guerra/conquista:** otro país `/guerra declarar <SIGLAS> Pueblo 10m`; al ganar el atacante, la provincia con el pueblo cambia de dueño (`/territorio info`).
+4. **Protección:** `warBreakStructures:false` + `/ecoadmin reload`; dentro de una zona de guerra activa, romper un bloque (vanilla o de T&T) se cancela con aviso. Ponlo en `true` → se puede romper (por defecto).
+5. Sin T&T instalado todo sigue igual; con o sin el mod, no hay errores.
+
+### Parte 6 (5ª tanda) — Equipar aldeanos de MCA y modos de actitud — implementada
+
+El **dueño** de un aldeano de MCA (su **familia jugadora**: pareja o padre/madre jugador) puede **equiparlo** y cambiarle el **modo de actitud**. Si no tiene familia jugadora, nadie puede equiparlo ni cambiarle el modo. Trabajo y actitud son **independientes**: un aldeano puede trabajar para el gobierno y tener como dueño a su pareja.
+
+- **Dueño por familia** (`Mca.isOwner`, reflexión): comprueba `getRelationships().isMarriedTo(jugador)` o que el jugador sea `father()/mother()` en el `FamilyTreeNode` de MCA.
+- **Equipar:** con el objeto (armadura/espada/arco/ballesta/tridente/maza/escudo/hacha) en la mano, el dueño **clic derecho** sobre el aldeano se lo pone (slot vanilla `equipStack`, se **renderiza** en el modelo por MCA). El objeto anterior vuelve al dueño. También desde la GUI (quitar) y, como se usa el equipo vanilla, persiste con la entidad.
+- **Modos** (`attitude.AttitudeMode`, guardado por RealEconomy porque MCA no tiene este concepto; `AttitudeManager`, `PersistentState` `realeconomy_attitude`, por defecto **PASIVO**):
+  - **Pasivo:** no ataca nunca.
+  - **Neutral:** no ataca primero; si le pegan, se defiende (ataca a `getAttacker()`).
+  - **Agresivo:** ataca a la vista. **Fuera de una guerra solo a monstruos hostiles**; a jugadores/aldeanos solo si `aggressiveAttacksPlayersOutsideWar` (por defecto **no**).
+- **Combate** (`attitude.AttitudeCombat`, tick por lotes y solo cerca de jugadores): navega al objetivo y lo golpea con enfriamiento (ataque vanilla; el equipo sube el daño). El objetivo en **guerra** lo decide la parte 7 (reutiliza `engage`).
+- **Muerte:** al morir un aldeano de MCA suelta su equipo si `villagerDropsEquipmentOnDeath` (por defecto no) y se limpian sus registros (actitud/empleo/librero).
+- **GUI** (`client.OwnerScreen`): nombre, 6 slots de equipo (clic en un slot = quitarlo, con tooltip real), y 3 botones de modo (el actual marcado). Payloads `OpenOwnerPayload` (S2C, con los `ItemStack`) y `OwnerActionPayload` (C2S).
+- **Comandos** (`/aldeano`, alias `/mcavillager`): `/aldeano` (abre la GUI del aldeano tuyo más cercano), `/aldeano modo <pasivo|neutral|agresivo>`, `/aldeano info`.
+- **Config:** `villagerDropsEquipmentOnDeath` (false), `aggressiveAttacksPlayersOutsideWar` (false).
+
+#### Cómo probar la parte 6 (5ª tanda)
+
+1. **UI sin MCA:** `/ecoadmin debug aldeano` → GUI de dueño (slots vacíos y los 3 botones de modo).
+2. **Con MCA:** cásate con una aldeana de MCA o ten un hijo (para ser su familia). Con una espada/armadura en la mano, **clic derecho** sobre ella → se la equipa (se ve en el modelo). Repite para casco/peto/etc.
+3. **Modo:** `/aldeano` abre la GUI; pon **Agresivo**. De noche, ataca a los zombis que se acerquen; no ataca a jugadores (salvo que actives `aggressiveAttacksPlayersOutsideWar`). Pon **Neutral**: solo contraataca si le pegas. **Pasivo**: nunca ataca. También `/aldeano modo agresivo`.
+4. **No-dueño:** otro jugador que no sea su familia no puede equiparla ni cambiarle el modo (aviso).
+5. **Muerte:** con `villagerDropsEquipmentOnDeath:true`, al morir suelta el equipo. Reinicia: el modo persiste; el equipo va con la entidad.
+
+### Parte 7 (5ª tanda) — Aldeanos de MCA en la guerra — implementada
+
+Los aldeanos de MCA de un jugador cuyo país está en guerra pueden **luchar en el bando de ese país dentro de la zona de guerra**. En guerra, los **Agresivos** atacan a primera vista a los **participantes del bando enemigo** (jugadores) y a **sus aldeanos**; **Neutral y Pasivo se comportan como siempre**. Las **leyes** del país/servidor mandan: una forma política que prohíba ejércitos bloquea la guerra.
+
+- **Alistar:** el **dueño** usa `/guerra alistar` junto a sus aldeanos de MCA → los mete en la guerra activa de su país, en su bando, con su dueño registrado. Límites `maxVillagersPerPlayerInWar` (5) y `maxVillagersPerCountryInWar` (20). Cada aldeano guarda su bando y su dueño en la guerra (NBT).
+- **Combate** (`attitude.AttitudeCombat`): un aldeano **Agresivo** alistado y **dentro de la zona** busca el enemigo más cercano (jugador del bando contrario no eliminado, o aldeano enemigo) y lo ataca (reusa `engage`). Fuera de la zona o si no está alistado, se comporta según su modo normal (monstruos).
+- **Victoria:** por defecto **los aldeanos NO cuentan** (la victoria sigue siendo por jugadores vivos). Con `villagersCountForVictory:true`, un bando solo cae cuando no le quedan ni jugadores ni aldeanos; el `tick` revisa la eliminación cada segundo.
+- **Muerte:** si un aldeano muere, `WarManager.onVillagerDeath` lo quita de esa guerra (y de los registros de empleo/actitud/librero). Fuera de la guerra, reglas normales de MCA.
+- **Leyes:** `/guerra declarar` y `/guerra alistar` comprueban `LawEnforcement.allowsArmy` (campo `allowArmy` en las leyes de la forma, editable en `realeconomy_forms.json`) y `serverLaws.allowWar`. `/guerra` muestra también el recuento de aldeanos por bando.
+- **Config:** `maxVillagersPerPlayerInWar` (5), `maxVillagersPerCountryInWar` (20), `villagersCountForVictory` (false), ley de forma `allowArmy` (true por defecto).
+
+#### Cómo probar la parte 7 (5ª tanda)
+
+> Requiere **MCA Reborn**. Dos países con una provincia en disputa (parte A/B) y aldeanos de MCA de tu propiedad (parte 6).
+
+1. Declara una guerra (parte B) entre tu país y otro por una provincia. `/guerra` muestra la guerra (y "aldeanos 0 vs 0").
+2. Junto a tus aldeanos de MCA, `/guerra alistar` → se alistan en tu bando (hasta los límites). `/guerra` ahora muestra tu recuento de aldeanos.
+3. Pon esos aldeanos en **Agresivo** (`/aldeano modo agresivo`, parte 6) y équipalos. Dentro de la **zona de guerra** (los chunks de la provincia), atacan a los jugadores/aldeanos del bando enemigo; fuera de la zona no.
+4. **Victoria:** por defecto solo cuentan los jugadores. Pon `villagersCountForVictory:true` + `/ecoadmin reload`: si un bando pierde todos sus jugadores y aldeanos, pierde la guerra.
+5. **Muerte:** si un aldeano alistado muere, sale de la guerra (`/guerra` baja el recuento).
+6. **Leyes:** en `realeconomy_forms.json` pon `allowArmy:false` en una forma + `/ecoadmin reload`; un país con esa forma no puede `/guerra declarar` ni `/guerra alistar`.
+
+### Parte 8 (5ª tanda) — Reglas transversales (config, leyes, tema, rendimiento) — implementada
+
+Garantías que cumplen todas las partes anteriores (no añaden código nuevo, se verifican aquí):
+
+- **Todo configurable y guardado en el mundo:** los conmutadores de mods (`enableMcaIntegration`, `enableTownsIntegration`), las tablas de producción y listas de bloques (`minerExtraBlocks`, `loggerBreakLeaves`, `farmerProduceTable`, `librarianBooks`…), los límites (`maxEmployeesPerPlayer/Country`, `maxVillagersPerPlayerInWar/Country`, `villagerMaxBreaksPerMinute`, `maxClaimsPerCountry`) y las opciones de guerra viven en `config/realeconomy.json` (+ `realeconomy_forms.json`), recargables con `/ecoadmin reload`. El estado (territorios, provincias, guerras, empleos, stock de libreros, actitudes) vive en `PersistentState` por mundo y persiste a reinicios. **Mundo limpio:** nada se siembra solo.
+- **Las leyes del país y del servidor mandan por encima:** el impuesto/impresión siguen con `LawEnforcement` (3ª/4ª tanda); la guerra/ejércitos respetan `allowArmy` (forma) y `serverLaws.allowWar` (servidor).
+- **Interfaces con el tema nuevo:** las GUIs nuevas (empleo, librero, dueño/equipo) usan `ThemedScreen`/`ThemedButton`/`ThemedTextField` y el tema Art Déco, con icono real + brillo + tooltip donde hay items.
+- **Rendimiento:** los aldeanos empleados y los agresivos **solo calculan** su trabajo/combate si hay **jugadores cerca** (escaneo alrededor de los jugadores conectados) y en **chunks cargados** (solo se procesan entidades cargadas), **por lotes** (cada 5 ticks, no cada tick) y con **rango limitado**. La detección de enemigos de los agresivos solo corre cerca de jugadores. Si el chunk no está cargado, el aldeano no se simula y retoma al cargarse.
+- **Aldeanos vanilla intactos:** todo lo nuevo se filtra por `Mca.isMcaVillager` (tipos `mca:*`); los aldeanos vanilla nunca reciben trabajos, armas, modos ni cartera. Lo previo (cambio de esmeraldas, NPCs del propio mod) no se toca.
+- **Dependencias opcionales declaradas:** `mca` y `t_and_t` van en `suggests` de `fabric.mod.json`; no en `depends`.
+
+#### Cómo probarlo con y sin los mods
+
+- **Sin MCA ni T&T:** el mod carga y todo lo anterior (1ª-4ª tanda) funciona igual; `/ecoadmin compat` dice "no instalado". Las GUIs nuevas se previsualizan con `/ecoadmin debug empleo|librero|aldeano`. Territorios (`/territorio`, `/provincia`) y guerras (`/guerra`) funcionan solos (no dependen de MCA/T&T).
+- **Con MCA:** aparecen aldeanos de MCA; `/ecoadmin compat` → "instalado y activo". Empleo (parte 2-3), librero (4), equipo/actitud (6) y guerra con aldeanos (7) operativos.
+- **Con T&T:** sus pueblos conviven con territorios/guerras (parte 5); no se les añade nada.
+- **Con ambos:** todo lo anterior a la vez; sin conflictos ni dependencias de compilación.
+
 ## Impuestos por tipo (3ª tanda, parte 4) — implementada
 
 El impuesto único se sustituye por **varios tipos** que el **gobierno** configura por separado; cada uno se activa/desactiva poniéndolo a 0 (o a -1 = "por defecto de la config" en cambio/subasta). **Todo va a la cuenta del país.**

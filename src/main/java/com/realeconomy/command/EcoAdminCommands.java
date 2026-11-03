@@ -71,7 +71,52 @@ public final class EcoAdminCommands {
                         .then(literal("ayuntamiento").executes(ctx -> debug(ctx, "ayuntamiento")))
                         .then(literal("tienda").executes(ctx -> debug(ctx, "tienda")))
                         .then(literal("mercado").executes(ctx -> debug(ctx, "mercado")))
-                        .then(literal("comprador").executes(ctx -> debug(ctx, "comprador")))));
+                        .then(literal("comprador").executes(ctx -> debug(ctx, "comprador")))
+                        .then(literal("empleo").executes(EcoAdminCommands::debugEmployment))
+                        .then(literal("librero").executes(EcoAdminCommands::debugLibrarian))
+                        .then(literal("aldeano").executes(EcoAdminCommands::debugOwner)))
+                .then(literal("compat").executes(EcoAdminCommands::compat)));
+    }
+
+    /** Abre la GUI de empleo de aldeanos de MCA con datos de ejemplo (sin aldeano real). */
+    private static int debugEmployment(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        com.realeconomy.employment.EmploymentActions.debugOpen(ctx.getSource().getPlayerOrThrow());
+        return 1;
+    }
+
+    /** Abre la GUI del librero con libros de ejemplo (sin aldeano real). */
+    private static int debugLibrarian(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        com.realeconomy.employment.LibrarianActions.debugOpen(ctx.getSource().getPlayerOrThrow());
+        return 1;
+    }
+
+    /** Abre la GUI de dueño (equipo + modo) con datos de ejemplo. */
+    private static int debugOwner(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
+        com.realeconomy.attitude.OwnerActions.debugOpen(ctx.getSource().getPlayerOrThrow());
+        return 1;
+    }
+
+    /** Muestra el estado de la compatibilidad con mods externos (MCA Reborn, Towns and Towers). */
+    private static int compat(CommandContext<ServerCommandSource> ctx) {
+        ModConfig cfg = ModConfig.get();
+        ctx.getSource().sendFeedback(() -> {
+            net.minecraft.text.MutableText t = Text.literal("Compatibilidad de RealEconomy:");
+            t.append(Text.literal("\n - MCA Reborn: " + status(
+                    com.realeconomy.compat.ModCompat.isMcaLoaded(), cfg.enableMcaIntegration)));
+            t.append(Text.literal("\n - Towns and Towers: " + status(
+                    com.realeconomy.compat.ModCompat.isTownsLoaded(), cfg.enableTownsIntegration)));
+            t.append(Text.literal("\n (los aldeanos vanilla nunca se ven afectados)")
+                    .formatted(net.minecraft.util.Formatting.GRAY));
+            return t;
+        }, false);
+        return 1;
+    }
+
+    private static String status(boolean loaded, boolean enabled) {
+        if (!loaded) {
+            return "no instalado";
+        }
+        return enabled ? "instalado y activo" : "instalado pero DESACTIVADO en la config";
     }
 
     /** Abre una interfaz del mod sin necesidad de NPC (para probar las pantallas en local). */

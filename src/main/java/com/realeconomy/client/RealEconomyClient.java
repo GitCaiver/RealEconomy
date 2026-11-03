@@ -100,6 +100,36 @@ public class RealEconomyClient implements ClientModInitializer {
                     }
                 }));
 
+        // Abre o actualiza la interfaz de empleo de un aldeano de MCA.
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenEmploymentPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof EmploymentScreen es) {
+                        es.refresh(payload);
+                    } else {
+                        context.client().setScreen(new EmploymentScreen(payload));
+                    }
+                }));
+
+        // Abre o actualiza la interfaz del librero (compra de libros encantados).
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenLibrarianPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof LibrarianScreen ls) {
+                        ls.refresh(payload);
+                    } else {
+                        context.client().setScreen(new LibrarianScreen(payload));
+                    }
+                }));
+
+        // Abre o actualiza la GUI de dueño de un aldeano de MCA (equipo + modo).
+        ClientPlayNetworking.registerGlobalReceiver(com.realeconomy.network.OpenOwnerPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    if (context.client().currentScreen instanceof OwnerScreen os) {
+                        os.refresh(payload);
+                    } else {
+                        context.client().setScreen(new OwnerScreen(payload));
+                    }
+                }));
+
         // El dato de tooltip de la moneda se convierte en el componente que pinta el icono.
         TooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof CoinTooltipData coin) {

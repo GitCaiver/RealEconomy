@@ -25,5 +25,8 @@
     "java": ">=21",
     "fabric-api": "*"
   },
-  "suggests": {}
+  "suggests": {
+    "mca": "*",
+    "t_and_t": "*"
+  }
 }

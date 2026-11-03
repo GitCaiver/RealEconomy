@@ -28,6 +28,11 @@ public final class LawEnforcement {
         return formLaws(g).requiresVoteBigDecisions;
     }
 
+    /** ¿Permite la forma política de este país tener ejército / ir a la guerra? */
+    public static boolean allowsArmy(Group g) {
+        return formLaws(g).allowArmy;
+    }
+
     // ---- Impuestos ----
 
     /** Impuesto máximo efectivo (%): el menor entre la ley de la forma y la del servidor. */
