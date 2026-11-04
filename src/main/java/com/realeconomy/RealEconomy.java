@@ -40,6 +40,7 @@ import com.realeconomy.group.Group;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -147,10 +148,24 @@ public class RealEconomy implements ModInitializer {
         // Trabajos: minería/tala/agricultura al romper bloques (la banca se cobra en BankActions).
         JobEvents.register();
 
-        // Protección opcional del terreno en zonas de guerra (warBreakStructures=false).
+        // Núcleo territorial + protección opcional del terreno en zonas de guerra.
         net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, be) -> {
-            if (!world.isClient && world instanceof net.minecraft.server.world.ServerWorld sw
-                    && com.realeconomy.war.WarProtection.isProtected(sw.getServer(), sw, pos)) {
+            if (world.isClient || !(world instanceof net.minecraft.server.world.ServerWorld sw)) {
+                return true;
+            }
+            var server = sw.getServer();
+
+            // ¿Es un núcleo territorial? Indestructible salvo para el atacante en una guerra por su provincia.
+            int ci = coreInteraction(sw, player, pos);
+            if (ci == 1) {
+                return true; // se rompe de verdad: el atacante gana y conquista
+            }
+            if (ci == 2) {
+                return false; // protegido (fuera de guerra o no es el atacante)
+            }
+
+            // Protección opcional del terreno en zonas de guerra (warBreakStructures=false).
+            if (com.realeconomy.war.WarProtection.isProtected(server, sw, pos)) {
                 if (player instanceof ServerPlayerEntity sp) {
                     sp.sendMessage(net.minecraft.text.Text.literal(
                             "Zona de guerra protegida: aquí no se puede romper el terreno.").formatted(
@@ -159,6 +174,24 @@ public class RealEconomy implements ModInitializer {
                 return false;
             }
             return true;
+        });
+
+        // Clic IZQUIERDO (golpear) sobre un núcleo: el bloque es bedrock (irrompible al minar),
+        // así que el atacante lo destruye golpeándolo durante la guerra por su provincia.
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
+            if (world.isClient || hand != Hand.MAIN_HAND
+                    || !(world instanceof net.minecraft.server.world.ServerWorld sw)) {
+                return ActionResult.PASS;
+            }
+            int ci = coreInteraction(sw, player, pos);
+            if (ci == 1) {
+                sw.breakBlock(pos, false); // destruye el núcleo manualmente (bedrock no se mina)
+                return ActionResult.SUCCESS;
+            }
+            if (ci == 2) {
+                return ActionResult.FAIL; // protegido: no es el atacante o no hay guerra
+            }
+            return ActionResult.PASS;
         });
 
         // Clic derecho en los NPC del banco / ayuntamiento -> abre su GUI.
@@ -246,5 +279,38 @@ public class RealEconomy implements ModInitializer {
         });
 
         LOGGER.info("RealEconomy inicializado (países/partidos, monedas, banco, ayuntamiento, tiendas, impuestos/tesorería, mercados, trabajos, préstamos, política monetaria/obras públicas, compradores, subastas).");
+    }
+
+    /**
+     * Interacción con un posible núcleo territorial en {@code pos}.
+     * Devuelve: 0 = no es un núcleo; 1 = era un núcleo y lo destruye el atacante (gana la guerra);
+     * 2 = es un núcleo protegido (fuera de guerra o quien interactúa no es el atacante).
+     */
+    private static int coreInteraction(net.minecraft.server.world.ServerWorld sw,
+                                       net.minecraft.entity.player.PlayerEntity player,
+                                       net.minecraft.util.math.BlockPos pos) {
+        var server = sw.getServer();
+        com.realeconomy.territory.TerritoryManager tm = com.realeconomy.territory.TerritoryManager.get(server);
+        com.realeconomy.territory.TerritoryCore core = tm.coreAt(sw, pos);
+        if (core == null) {
+            return 0;
+        }
+        com.realeconomy.war.WarManager wm = com.realeconomy.war.WarManager.get(server);
+        com.realeconomy.war.War war = wm.activeWarForProvince(core.provinceId());
+        boolean attacker = war != null && player instanceof ServerPlayerEntity sp2
+                && war.sideOfPlayer(sp2.getUuid()) == com.realeconomy.war.War.SIDE_ATTACKER
+                && !war.eliminated().contains(sp2.getUuid());
+        if (attacker) {
+            tm.removeCore(core.provinceId());
+            wm.onCoreDestroyed(server, war, (ServerPlayerEntity) player);
+            return 1;
+        }
+        if (player instanceof ServerPlayerEntity sp3) {
+            sp3.sendMessage(net.minecraft.text.Text.literal(war == null
+                    ? "El núcleo territorial es indestructible salvo en una guerra por su provincia."
+                    : "Solo el bando atacante puede destruir el núcleo en esta guerra.").formatted(
+                    net.minecraft.util.Formatting.RED), true);
+        }
+        return 2;
     }
 }

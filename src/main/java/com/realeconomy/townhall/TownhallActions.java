@@ -100,7 +100,44 @@ public final class TownhallActions {
             openTaxPanel(player);
         } else if (action.action() == TownhallActionPayload.OPEN_LICENSES) {
             openLicensePanel(player);
+        } else if (action.action() == TownhallActionPayload.BUY_NUCLEO) {
+            buyNucleo(player);
+            openFor(player);
         }
+    }
+
+    /** Compra un núcleo territorial: se paga en la moneda del propio país y va a su cuenta. */
+    private static void buyNucleo(ServerPlayerEntity player) {
+        MinecraftServer server = player.getServer();
+        if (!ModConfig.get().territoryCoreEnabled) {
+            player.sendMessage(Text.literal("El núcleo territorial está desactivado en este servidor.")
+                    .formatted(Formatting.RED));
+            return;
+        }
+        Group country = GroupManager.get(server).getByPlayer(player.getUuid());
+        if (country == null) {
+            player.sendMessage(Text.literal("No perteneces a ningún país.").formatted(Formatting.RED));
+            return;
+        }
+        Currency cc = CurrencyManager.get(server).getByGroup(country.getId());
+        if (cc == null) {
+            player.sendMessage(Text.literal("Tu país no tiene moneda.").formatted(Formatting.RED));
+            return;
+        }
+        int price = ModConfig.get().territoryCorePrice;
+        BalanceManager bm = BalanceManager.get(server);
+        if (!bm.subtract(player.getUuid(), cc.getId(), price)) {
+            player.sendMessage(Text.literal("Saldo insuficiente. El núcleo cuesta " + price + " " + cc.getName() + ".")
+                    .formatted(Formatting.RED));
+            return;
+        }
+        bm.add(FinanceManager.accountUuid(country), cc.getId(), price);
+        net.minecraft.item.ItemStack stack = new net.minecraft.item.ItemStack(com.realeconomy.item.ModItems.TERRITORY_CORE);
+        if (!player.getInventory().insertStack(stack)) {
+            player.dropItem(stack, false);
+        }
+        player.sendMessage(Text.literal("Núcleo territorial comprado por " + price + " " + cc.getName()
+                + ". Colócalo (siendo gobierno) para reclamar un área.").formatted(Formatting.GREEN));
     }
 
     // ---- Panel de licencias personalizadas (parte 5, 3ª tanda) ----

@@ -23,6 +23,9 @@ public final class ModItems {
     /** Item de moneda (único para todas las divisas). */
     public static Item COIN;
 
+    /** Item "núcleo territorial": al colocarlo reclama un área para el país del gobierno que lo pone. */
+    public static Item TERRITORY_CORE;
+
     /** Grupo creativo del mod. */
     public static ItemGroup ITEM_GROUP;
     public static RegistryKey<ItemGroup> ITEM_GROUP_KEY;
@@ -46,11 +49,20 @@ public final class ModItems {
                 new CoinItem(new Item.Settings().maxCount(64))
         );
 
+        TERRITORY_CORE = Registry.register(
+                Registries.ITEM,
+                Identifier.of(RealEconomy.MOD_ID, "nucleo"),
+                new NucleoItem(new Item.Settings().maxCount(16))
+        );
+
         ITEM_GROUP_KEY = RegistryKey.of(RegistryKeys.ITEM_GROUP, Identifier.of(RealEconomy.MOD_ID, "general"));
         ITEM_GROUP = FabricItemGroup.builder()
                 .icon(() -> new ItemStack(COIN))
                 .displayName(Text.translatable("itemGroup.realeconomy.general"))
-                .entries((displayContext, entries) -> entries.add(new ItemStack(COIN)))
+                .entries((displayContext, entries) -> {
+                    entries.add(new ItemStack(COIN));
+                    entries.add(new ItemStack(TERRITORY_CORE));
+                })
                 .build();
         Registry.register(Registries.ITEM_GROUP, ITEM_GROUP_KEY, ITEM_GROUP);
     }

@@ -42,6 +42,8 @@ public class TerritoryManager extends PersistentState {
     private final Map<String, Map<Long, Claim>> claims = new HashMap<>();
     /** provinceId -> Province. */
     private final Map<String, Province> provinces = new HashMap<>();
+    /** provinceId -> núcleo territorial (baluarte) que la ancla. */
+    private final Map<String, TerritoryCore> cores = new HashMap<>();
 
     public TerritoryManager() {
     }
@@ -182,6 +184,7 @@ public class TerritoryManager extends PersistentState {
         if (provinces.remove(provinceId) == null) {
             return;
         }
+        cores.remove(provinceId);
         for (Map<Long, Claim> m : claims.values()) {
             for (Map.Entry<Long, Claim> e : m.entrySet()) {
                 if (provinceId.equals(e.getValue().provinceId())) {
@@ -209,16 +212,56 @@ public class TerritoryManager extends PersistentState {
                 }
             }
         }
+        // El núcleo (si sigue en pie) pasa al conquistador junto con la provincia.
+        TerritoryCore core = cores.get(provinceId);
+        if (core != null) {
+            cores.put(provinceId, new TerritoryCore(core.dim(), core.posLong(), newCountryId, provinceId));
+        }
         markDirty();
     }
 
-    /** Al disolver un país: libera sus chunks y borra sus provincias. */
+    // ---- Núcleos territoriales (baluartes) ----
+
+    /** Registra un núcleo para una provincia (sustituye al anterior de esa provincia). */
+    public void placeCore(ServerWorld world, BlockPos pos, String countryId, String provinceId) {
+        cores.put(provinceId, new TerritoryCore(dimId(world), pos.asLong(), countryId, provinceId));
+        markDirty();
+    }
+
+    /** Núcleo de una provincia, o null si no tiene. */
+    public TerritoryCore coreOfProvince(String provinceId) {
+        return provinceId == null ? null : cores.get(provinceId);
+    }
+
+    /** Núcleo que ocupa exactamente esta posición de bloque, o null. */
+    public TerritoryCore coreAt(ServerWorld world, BlockPos pos) {
+        String dim = dimId(world);
+        long key = pos.asLong();
+        for (TerritoryCore c : cores.values()) {
+            if (c.dim().equals(dim) && c.posLong() == key) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** Quita el registro del núcleo de una provincia (no toca el bloque del mundo). */
+    public TerritoryCore removeCore(String provinceId) {
+        TerritoryCore c = cores.remove(provinceId);
+        if (c != null) {
+            markDirty();
+        }
+        return c;
+    }
+
+    /** Al disolver un país: libera sus chunks y borra sus provincias y núcleos. */
     public void removeCountry(String countryId) {
         boolean changed = false;
         for (Map<Long, Claim> m : claims.values()) {
             changed |= m.values().removeIf(c -> c.countryId().equals(countryId));
         }
         changed |= provinces.values().removeIf(p -> p.getCountryId().equals(countryId));
+        changed |= cores.values().removeIf(c -> c.countryId().equals(countryId));
         if (changed) {
             markDirty();
         }
@@ -247,6 +290,11 @@ public class TerritoryManager extends PersistentState {
             provList.add(p.toNbt());
         }
         nbt.put("provinces", provList);
+        NbtList coreList = new NbtList();
+        for (TerritoryCore c : cores.values()) {
+            coreList.add(c.toNbt());
+        }
+        nbt.put("cores", coreList);
         return nbt;
     }
 
@@ -263,6 +311,11 @@ public class TerritoryManager extends PersistentState {
         for (int i = 0; i < provList.size(); i++) {
             Province p = Province.fromNbt(provList.getCompound(i));
             mgr.provinces.put(p.getId(), p);
+        }
+        NbtList coreList = nbt.getList("cores", NbtElement.COMPOUND_TYPE);
+        for (int i = 0; i < coreList.size(); i++) {
+            TerritoryCore c = TerritoryCore.fromNbt(coreList.getCompound(i));
+            mgr.cores.put(c.provinceId(), c);
         }
         return mgr;
     }

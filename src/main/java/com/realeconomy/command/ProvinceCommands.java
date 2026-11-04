@@ -92,13 +92,25 @@ public final class ProvinceCommands {
         if (g == null) {
             return 0;
         }
-        TerritoryManager tm = TerritoryManager.get(ctx.getSource().getServer());
+        MinecraftServer server = ctx.getSource().getServer();
+        TerritoryManager tm = TerritoryManager.get(server);
         Province p = tm.getProvinceByName(g.getId(), name.trim());
         if (p == null) {
             ctx.getSource().sendError(Text.literal("Tu país no tiene esa provincia."));
             return 0;
         }
+        // Si la provincia tenía un núcleo, retira también su bloque del mundo.
+        com.realeconomy.territory.TerritoryCore core = tm.coreOfProvince(p.getId());
         tm.removeProvince(p.getId());
+        if (core != null) {
+            net.minecraft.registry.RegistryKey<net.minecraft.world.World> dimKey =
+                    net.minecraft.registry.RegistryKey.of(net.minecraft.registry.RegistryKeys.WORLD,
+                            net.minecraft.util.Identifier.of(core.dim()));
+            net.minecraft.server.world.ServerWorld w = server.getWorld(dimKey);
+            if (w != null) {
+                w.setBlockState(core.pos(), net.minecraft.block.Blocks.AIR.getDefaultState());
+            }
+        }
         ctx.getSource().sendFeedback(() -> Text.literal("Provincia \"" + p.getName()
                 + "\" borrada; sus chunks quedan en el país sin provincia.").formatted(Formatting.YELLOW), false);
         return 1;

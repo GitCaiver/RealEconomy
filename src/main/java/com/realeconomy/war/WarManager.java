@@ -102,6 +102,32 @@ public class WarManager extends PersistentState {
         return w.getProvinceId().equals(TerritoryManager.get(server).provinceAt(world, pos));
     }
 
+    /** Guerra activa que contesta esta provincia, o null. */
+    public War activeWarForProvince(String provinceId) {
+        if (provinceId == null) {
+            return null;
+        }
+        for (War w : active) {
+            if (!w.isEnded() && w.getProvinceId().equals(provinceId)) {
+                return w;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * El bando atacante ha destruido el núcleo territorial de la provincia contestada:
+     * gana la guerra y conquista la provincia.
+     */
+    public void onCoreDestroyed(MinecraftServer server, War w, ServerPlayerEntity breaker) {
+        if (w.isEnded()) {
+            return;
+        }
+        announce(server, w, Text.literal(breaker.getNameForScoreboard()
+                + " ha destruido el núcleo territorial enemigo.").formatted(Formatting.RED));
+        resolve(server, w, w.getAttackerId(), "rompió el núcleo territorial");
+    }
+
     /** Guerra activa cuya zona contiene esta posición y en la que participa el jugador, o null. */
     public War warZoneAt(MinecraftServer server, ServerWorld world, BlockPos pos) {
         String province = TerritoryManager.get(server).provinceAt(world, pos);

@@ -151,6 +151,12 @@ public final class TerritoryCommands {
                         .formatted(owner != null ? owner.getColor() : Formatting.WHITE));
         if (prov != null) {
             t.append(Text.literal(" · provincia " + prov.getName()).formatted(prov.getColor()));
+            com.realeconomy.territory.TerritoryCore core = tm.coreOfProvince(prov.getId());
+            if (core != null) {
+                net.minecraft.util.math.BlockPos bp = core.pos();
+                t.append(Text.literal(" · núcleo en [" + bp.getX() + ", " + bp.getY() + ", " + bp.getZ() + "]")
+                        .formatted(Formatting.AQUA));
+            }
         }
         ctx.getSource().sendFeedback(() -> t, false);
         return 1;

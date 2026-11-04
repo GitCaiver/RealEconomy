@@ -161,6 +161,18 @@ public class ModConfig {
     /** Máximo de chunks que puede reclamar un país (-1 = sin límite). */
     public int maxClaimsPerCountry = -1;
 
+    // ---- Núcleo territorial / baluarte (5ª tanda, parte C) ----
+    /** Activa el item "núcleo territorial" que reclama un área al colocarlo. */
+    public boolean territoryCoreEnabled = true;
+    /** Radio en bloques que reclama un núcleo a su alrededor (50 = área de 100x100 con el núcleo en el centro). */
+    public int territoryCoreRadius = 50;
+    /** Bloque que se coloca físicamente como núcleo (indestructible salvo en guerra). */
+    public String territoryCoreBlock = "minecraft:bedrock";
+    /** Si colocar un núcleo consume el item (salvo en creativo). */
+    public boolean territoryCoreConsumeItem = true;
+    /** Precio del núcleo territorial en el ayuntamiento (se paga en la moneda del propio país). */
+    public int territoryCorePrice = 100;
+
     // ---- Compatibilidad con mods externos (5ª tanda) ----
     /** Activa la integración con MCA Reborn (empleo/equipo/guerra de sus aldeanos). Solo surte efecto si MCA está instalado. */
     public boolean enableMcaIntegration = true;

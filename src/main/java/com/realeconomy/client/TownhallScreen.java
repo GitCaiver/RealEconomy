@@ -15,7 +15,7 @@ import net.minecraft.text.Text;
 public class TownhallScreen extends ThemedScreen {
 
     private static final int BG_W = 210;
-    private static final int BG_H = 262;
+    private static final int BG_H = 286;
 
     private OpenTownhallPayload data;
     private TextFieldWidget printField;
@@ -40,8 +40,12 @@ public class TownhallScreen extends ThemedScreen {
         this.addDrawableChild(ThemedButton.of(cl, top0 + 50, cw, 18, Text.literal("Licencias del país…"),
                 b -> ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.OPEN_LICENSES, 0))));
 
+        // Compra del núcleo territorial (parte C): se paga en la moneda del país.
+        this.addDrawableChild(ThemedButton.of(cl, top0 + 70, cw, 18, Text.literal("Comprar núcleo territorial"),
+                b -> ClientPlayNetworking.send(new TownhallActionPayload(TownhallActionPayload.BUY_NUCLEO, 0))));
+
         if (data.canPrint()) {
-            int py = top0 + 140;
+            int py = top0 + 158;
             this.printField = new com.realeconomy.client.ui.ThemedTextField(this.textRenderer, cl, py, 74, 18, Text.literal("cantidad"));
             this.printField.setPlaceholder(Text.literal("cantidad"));
             this.addDrawableChild(this.printField);
@@ -83,7 +87,7 @@ public class TownhallScreen extends ThemedScreen {
         }
 
         // Sección política monetaria.
-        int my = y + 78;
+        int my = y + 96;
         centered(ctx, Text.literal("· Política monetaria ·"), left + bgW / 2, my, Theme.TITLE);
         if (!data.hasCountry()) {
             text(ctx, "No perteneces a ningún país.", cl, my + 14, Theme.TEXT_DIM);
